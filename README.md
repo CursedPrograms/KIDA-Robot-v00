@@ -22,6 +22,14 @@
 
 # KIDA (v00): Kinetic Interactive Drive Automaton
 
+- Pi 3
+- Freenove Robotics Hat
+- Ultrasonic Sensor
+- PI Camera
+- Line Follower
+- 5v DC Motor
+
+
 ## How to Run:
 
 ```bash
