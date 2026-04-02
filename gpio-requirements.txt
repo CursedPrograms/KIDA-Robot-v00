@@ -1,0 +1,2 @@
+sudo apt install python3-rpi.gpio python3-picamera2 ffmpeg
+pip install qrcode[pil] pillow
