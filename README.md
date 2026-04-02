@@ -20,7 +20,7 @@
   </div>
   <br>
 
-# Python-Template
+# KIDA (v00): Kinetic Interactive Drive Automaton
 
 ## How to Run:
 
