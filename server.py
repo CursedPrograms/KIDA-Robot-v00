@@ -7,7 +7,7 @@ app = Flask(__name__)
 # --- Routes ---
 @app.route('/')
 def home():
-    return "🚀 Welcome to KIDA's Flask Server!"
+    return "Welcome to KIDA's Flask Server!"
 
 @app.route('/status')
 def status():

@@ -1,6 +1,6 @@
 {
     "Config": {
-      "AppName": "Gender Age ID",
+      "AppName": "KIDA v00",
       "Description": "",
       "ProjectStructure": {
         "MainScript": "main.py",
