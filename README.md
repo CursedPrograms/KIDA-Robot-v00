@@ -24,6 +24,11 @@
 
 ## How to Run:
 
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
 ### Install Requirements
 
 Using Python directly:
@@ -54,18 +59,19 @@ or
 
 Unix-like systems (Linux/macOS):
 - `.\run.sh`
-
-  <br>
+  <br>  
 
 ## Requirements:
 
 ```bash
 
+
+
 ```
 
 <br>
 <div align="center">
-© Cursed Entertainment 202*
+© Cursed Entertainment 2026
 </div>
 <br>
 <div align="center">
