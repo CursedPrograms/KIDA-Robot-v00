@@ -6,3 +6,4 @@ class Mode(IntEnum):
     USER       = 0
     AUTONOMOUS = 1
     LINE       = 2
+    FACE       = 3   # Gender / age detection via DeepFace
