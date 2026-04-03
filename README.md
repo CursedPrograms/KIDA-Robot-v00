@@ -115,9 +115,13 @@ Unix-like systems (Linux/macOS):
 - `.\run.sh`
   <br>  
 
-📡 SSID: KIDAv00
-🔒 Password: 12345678
-🌐 Access your site at: http://192.168.4.1:5000
+### Network Setup
+
+- 📡 SSID: KIDAv00
+- 🔒 Password: 12345678
+- 🌐 Access your site at: http://192.168.4.1:5000
+
+  <br> 
 
 ```bash
 sudo apt update
@@ -157,8 +161,6 @@ rsn_pairwise=CCMP
 ```bash
 sudo nano /etc/default/hostapd
 ```
-
-
 #DAEMON_CONF=""
 
 ```bash
