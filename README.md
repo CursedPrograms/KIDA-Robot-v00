@@ -29,6 +29,8 @@
 - Line Follower
 - 5v DC Motor
 
+kida_robot_architecture.svg
+
 # KIDA Pinout Configuration
 
 This document describes the GPIO pin assignments for the KIDA robot.
