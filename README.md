@@ -37,7 +37,7 @@
 
 - pip install flask picamera2 opencv-python psutil
 - python server.py
-# then open http://<pi-ip>:5000 on any device on your network
+- then open http://<pi-ip>:5000 on any device on your network
 
 
 ## Functions:
