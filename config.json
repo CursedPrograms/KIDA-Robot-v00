@@ -1,14 +1,21 @@
-{
-    "Config": {
-      "AppName": "KIDA v00",
-      "Description": "",
-      "ProjectStructure": {
-        "MainScript": "main.py",
-        "DependenciesScript": "scripts/install-dependencies.py"
-      },
-      "Scripts": {
-        "MainScript": "main.py",
-        "DependenciesScript": "scripts/install-dependencies.py"
-      }
-    }
+"Config": {
+  "AppName": "KIDA",
+  "Version": "0.0.1",
+  "Description": "Autonomous robotic control system with UI, AI, and remote interface",
+
+  "EntryPoints": {
+    "Main": "main.py",
+    "Setup": "scripts/install-dependencies.py"
+  },
+
+  "Paths": {
+    "Base": ".",
+    "Scripts": "scripts/",
+    "Assets": "assets/",
+    "Audio": "audio/",
+    "Images": "images/",
+    "Videos": "videos/",
+    "Photos": "photos/"
   }
+}
+}
