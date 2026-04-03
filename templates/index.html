@@ -1,124 +1,924 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>KIDA Web Controller</title>
-  <style>
-    body {
-      background-color: #121212;
-      font-family: 'Courier New', monospace;
-      color: #fff;
-      text-align: center;
-      padding: 20px;
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>KIDA — Remote Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #08090d;
+    --panel:    #0e0f16;
+    --panel2:   #12141f;
+    --border:   #20223c;
+    --accent:   #ff1e64;
+    --green:    #1dc878;
+    --blue:     #3a8add;
+    --amber:    #ffa028;
+    --red:      #e24b4a;
+    --teal:     #14c8a0;
+    --pri:      #e6e6e1;
+    --sec:      #82847d;
+    --dim:      #3c3e4b;
+    --font-hud: 'Orbitron', monospace;
+    --font-mono:'Share Tech Mono', monospace;
+    --rad:      8px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: var(--bg);
+    color: var(--pri);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.06) 2px,
+      rgba(0,0,0,0.06) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* Grid background */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,30,100,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,30,100,0.03) 1px, transparent 1px);
+    background-size: 44px 44px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Layout ─────────────────────────────────────────────── */
+  #app {
+    position: relative; z-index: 1;
+    display: grid;
+    grid-template-rows: 52px 1fr 38px;
+    grid-template-columns: 260px 1fr 280px;
+    width: 100vw; height: 100vh;
+  }
+
+  /* Top bar spans all 3 columns */
+  #topbar {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+
+  /* Bottom bar spans all 3 columns */
+  #botbar {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; gap: 0;
+    padding: 0 14px;
+    border-top: 1px solid var(--border);
+    background: #0a0b10;
+    font-size: 11px;
+  }
+
+  /* Panels */
+  #left  { border-right:  1px solid var(--border); background: var(--panel); overflow: hidden; }
+  #centre {               background: var(--bg);   overflow: hidden; }
+  #right { border-left:   1px solid var(--border); background: var(--panel); overflow: hidden; }
+
+  .panel-inner { padding: 12px 14px; height: 100%; overflow-y: auto; scrollbar-width: none; }
+  .panel-inner::-webkit-scrollbar { display: none; }
+
+  /* ── Top bar ─────────────────────────────────────────────── */
+  #logo {
+    font-family: var(--font-hud);
+    font-size: 22px; font-weight: 900;
+    color: var(--accent);
+    letter-spacing: 4px;
+    text-shadow: 0 0 20px rgba(255,30,100,0.5);
+    flex-shrink: 0;
+  }
+
+  #tabs {
+    display: flex; gap: 6px; flex: 1;
+  }
+
+  .tab {
+    font-family: var(--font-mono);
+    font-size: 12px; letter-spacing: 1px;
+    padding: 6px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--rad);
+    background: transparent;
+    color: var(--sec);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .tab:hover { border-color: var(--accent); color: var(--accent); }
+  .tab.active {
+    border-color: var(--accent); color: var(--accent);
+    background: rgba(255,30,100,0.08);
+    box-shadow: 0 2px 0 var(--accent);
+  }
+
+  #topchips {
+    display: flex; align-items: center; gap: 18px; margin-left: auto;
+    font-size: 11px;
+  }
+  .chip { display: flex; flex-direction: column; align-items: flex-end; }
+  .chip .cv { font-family: var(--font-hud); font-size: 13px; color: var(--pri); }
+  .chip .cl { color: var(--dim); font-size: 10px; }
+  .chip.warn .cv { color: var(--amber); }
+
+  #led-dots {
+    display: flex; gap: 6px; align-items: center; margin-right: 4px;
+  }
+  .led-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--dim);
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+  .led-dot.on {
+    box-shadow: 0 0 8px currentColor;
+  }
+
+  /* ── Status bar ──────────────────────────────────────────── */
+  .sb-item { display: flex; align-items: center; gap: 5px; padding: 0 12px; }
+  .sb-item + .sb-item { border-left: 1px solid var(--border); }
+  .sb-label { color: var(--dim); }
+  .sb-val   { color: var(--sec); }
+  .sb-ping  {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: pulse 2s infinite;
+    margin-right: 4px;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; } 50% { opacity: 0.4; }
+  }
+  #sb-version { margin-left: auto; color: var(--dim); }
+
+  /* ── Section label ───────────────────────────────────────── */
+  .sec-label {
+    font-size: 10px; letter-spacing: 2px; color: var(--dim);
+    text-transform: uppercase;
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 10px;
+  }
+  .sec-label::before {
+    content: '';
+    width: 2px; height: 12px;
+    background: var(--accent);
+    border-radius: 1px;
+    flex-shrink: 0;
+  }
+
+  /* ── Left panel ──────────────────────────────────────────── */
+  #qr-block { text-align: center; margin-bottom: 12px; }
+  #qr-block img { width: 90px; height: 90px; border: 1px solid var(--border); border-radius: 4px; }
+  #qr-url { font-size: 11px; color: var(--amber); margin-top: 4px; }
+
+  .stat-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 2px;
+  }
+  .stat-row .lbl { color: var(--dim); font-size: 11px; }
+  .stat-row .val { font-family: var(--font-hud); font-size: 12px; color: var(--sec); }
+
+  .bar-track {
+    height: 5px; border-radius: 3px;
+    background: #12141f;
+    margin-bottom: 10px; overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%; border-radius: 3px;
+    transition: width 0.6s ease;
+  }
+
+  .divider { height: 1px; background: var(--border); margin: 10px 0; }
+
+  .net-row {
+    display: flex; justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px solid #16182a;
+    font-size: 12px;
+  }
+  .net-row .lbl { color: var(--dim); }
+  .net-row .val { color: var(--sec); font-family: var(--font-hud); font-size: 11px; }
+
+  /* Music */
+  #track-name { font-size: 13px; color: var(--pri); margin-bottom: 6px;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #track-name.playing { color: var(--accent); }
+
+  #waveform {
+    display: flex; align-items: flex-end; gap: 1px;
+    height: 28px; margin-bottom: 10px;
+  }
+  .wbar {
+    flex: 1; background: var(--dim); border-radius: 1px;
+    min-height: 2px;
+    transition: height 0.1s;
+  }
+  .playing .wbar { background: var(--accent); }
+
+  .btn-row { display: flex; gap: 6px; margin-bottom: 6px; }
+
+  /* ── Generic button ──────────────────────────────────────── */
+  .btn {
+    font-family: var(--font-mono);
+    font-size: 13px; letter-spacing: 1px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--rad);
+    background: var(--panel);
+    color: var(--sec);
+    cursor: pointer;
+    transition: all 0.12s;
+    display: flex; align-items: center; justify-content: center;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:hover, .btn:active { border-color: var(--accent); color: var(--accent);
+                             background: rgba(255,30,100,0.07); }
+  .btn.active { border-color: var(--accent); color: var(--accent);
+                background: rgba(255,30,100,0.10);
+                box-shadow: 0 3px 0 var(--accent) inset; }
+  .btn.blue:hover   { border-color: var(--blue);  color: var(--blue);  background: rgba(58,138,221,0.08); }
+  .btn.green:hover  { border-color: var(--green); color: var(--green); background: rgba(29,200,120,0.08); }
+  .btn.danger       { border-color: var(--red);   color: var(--red);   background: rgba(226,75,74,0.08); }
+  .btn.danger:hover { filter: brightness(1.2); }
+  .btn.full { flex: 1; }
+
+  /* ── Centre panel ────────────────────────────────────────── */
+  #centre-inner {
+    display: flex; flex-direction: column;
+    height: 100%; padding: 10px 12px;
+  }
+
+  #tab-strip {
+    display: flex; gap: 6px; margin-bottom: 10px;
+  }
+
+  /* Camera */
+  #cam-wrap {
+    position: relative;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--rad);
+    overflow: hidden;
+    background: #080a10;
+  }
+  #cam-wrap img {
+    display: block;
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+
+  /* Corner brackets */
+  .corner {
+    position: absolute; width: 20px; height: 20px;
+    pointer-events: none;
+  }
+  .corner::before, .corner::after {
+    content: ''; position: absolute;
+    background: var(--accent);
+  }
+  .corner::before { width: 2px; height: 100%; }
+  .corner::after  { width: 100%; height: 2px; }
+  .corner.tl { top: 5px; left: 5px; }
+  .corner.tl::before { top: 0; left: 0; }
+  .corner.tl::after  { top: 0; left: 0; }
+  .corner.tr { top: 5px; right: 5px; }
+  .corner.tr::before { top: 0; right: 0; }
+  .corner.tr::after  { top: 0; right: 0; }
+  .corner.bl { bottom: 5px; left: 5px; }
+  .corner.bl::before { bottom: 0; left: 0; }
+  .corner.bl::after  { bottom: 0; left: 0; }
+  .corner.br { bottom: 5px; right: 5px; }
+  .corner.br::before { bottom: 0; right: 0; }
+  .corner.br::after  { bottom: 0; right: 0; }
+
+  #rec-badge {
+    position: absolute; top: 10px; right: 12px;
+    display: none; align-items: center; gap: 5px;
+    font-family: var(--font-hud); font-size: 11px; color: var(--red);
+  }
+  #rec-badge.show { display: flex; }
+  #rec-dot { width: 8px; height: 8px; border-radius: 50%;
+             background: var(--red); box-shadow: 0 0 8px var(--red);
+             animation: pulse 1s infinite; }
+
+  #mode-overlay {
+    position: absolute; bottom: 10px; left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--font-hud); font-size: 12px; letter-spacing: 2px;
+    padding: 4px 14px;
+    background: rgba(0,0,0,0.7);
+    border-radius: 4px;
+    display: none;
+  }
+  #mode-overlay.show { display: block; }
+
+  /* Info strip below camera */
+  #cam-info {
+    display: flex; gap: 20px;
+    padding: 8px 0 4px;
+    flex-shrink: 0;
+  }
+  .ci-item { display: flex; flex-direction: column; }
+  .ci-lbl  { font-size: 10px; color: var(--dim); letter-spacing: 1px; }
+  .ci-val  { font-family: var(--font-hud); font-size: 14px; color: var(--pri);
+             transition: color 0.3s; }
+  .ci-val.moving { color: var(--amber); }
+
+  /* Bottom waveform in centre */
+  #centre-wave {
+    display: flex; align-items: flex-end; gap: 1px;
+    height: 32px; margin-top: auto; padding-top: 6px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #centre-wave .wbar { background: rgba(255,30,100,0.25); }
+  #centre-wave.playing .wbar { background: rgba(255,30,100,0.55); }
+
+  /* ── Right panel ─────────────────────────────────────────── */
+  #dpad-wrap {
+    display: grid;
+    grid-template-areas:
+      ". fwd ."
+      "lft stp rgt"
+      ". bwd .";
+    gap: 6px;
+    margin: 0 auto 16px;
+    width: fit-content;
+  }
+  .dp-btn {
+    width: 68px; height: 68px;
+    font-size: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: var(--rad);
+    background: var(--panel2);
+    cursor: pointer;
+    transition: all 0.1s;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  .dp-btn:hover { border-color: var(--accent); background: rgba(255,30,100,0.1); }
+  .dp-btn:active, .dp-btn.pressed {
+    border-color: var(--accent); background: rgba(255,30,100,0.15);
+    transform: scale(0.93);
+  }
+  .dp-btn.stop-btn { font-size: 20px; border-color: var(--red); color: var(--red); }
+  .dp-btn.stop-btn:hover { background: rgba(226,75,74,0.15); }
+  .dp-btn.active-dir { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+
+  [data-dir=forward]  { grid-area: fwd; }
+  [data-dir=left]     { grid-area: lft; }
+  [data-dir=stop]     { grid-area: stp; }
+  [data-dir=right]    { grid-area: rgt; }
+  [data-dir=backward] { grid-area: bwd; }
+
+  /* Speed */
+  #speed-btns { display: flex; gap: 6px; margin-bottom: 16px; }
+  #speed-btns .btn { flex: 1; height: 40px; font-family: var(--font-hud); font-size: 14px; }
+
+  /* Scheme */
+  #scheme-btns { display: flex; gap: 6px; margin-bottom: 16px; }
+  #scheme-btns .btn { flex: 1; height: 40px; }
+
+  /* Capture */
+  #capture-btns { display: flex; gap: 6px; }
+  #capture-btns .btn { flex: 1; height: 46px; font-size: 14px; }
+
+  /* ── Animations ──────────────────────────────────────────── */
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  #app > * { animation: fadeIn 0.4s ease both; }
+  #topbar  { animation-delay: 0.0s; }
+  #left    { animation-delay: 0.1s; }
+  #centre  { animation-delay: 0.15s; }
+  #right   { animation-delay: 0.2s; }
+  #botbar  { animation-delay: 0.25s; }
+
+  /* ── Mobile tweaks ───────────────────────────────────────── */
+  @media (max-width: 900px) {
+    #app {
+      grid-template-columns: 1fr;
+      grid-template-rows: 52px auto auto auto 38px;
+      overflow-y: auto;
     }
-    h1 {
-      margin-bottom: 10px;
-    }
-    .controller {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      margin-top: 30px;
-    }
-    .dpad {
-      display: grid;
-      grid-template-columns: 60px 60px 60px;
-      grid-template-rows: 60px 60px 60px;
-      gap: 5px;
-      margin-right: 100px;
-    }
-    .dpad button, .actions button, .toprow button, .status, .stats {
-      background-color: #d62828;
-      border: none;
-      border-radius: 8px;
-      color: #fff;
-      font-size: 18px;
-      padding: 10px;
-      cursor: pointer;
-      box-shadow: 0 0 5px #000;
-    }
-    .actions {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-    .actions-row {
-      display: flex;
-      gap: 20px;
-      justify-content: center;
-    }
-    .toprow {
-      margin-top: 30px;
-      display: flex;
-      justify-content: center;
-      gap: 20px;
-    }
-    .stats {
-      margin-top: 30px;
-      background-color: #333;
-      padding: 10px;
-      border-radius: 10px;
-    }
-  </style>
+    #left, #right { border: none; border-top: 1px solid var(--border); }
+    #centre { order: -1; }
+  }
+</style>
 </head>
 <body>
-  <h1>KIDA Web Controller</h1>
+<div id="app">
 
-  <div class="toprow">
-    <button onclick="send('user_mode')">User Mode</button>
-    <button onclick="send('auto_mode')">Autonomy</button>
-    <button onclick="send('speed')">Speed 🔁</button>
-    <button onclick="send('switch_control')">Switch Control</button>
-    <button onclick="send('back')">Back</button>
-  </div>
-
-  <div class="controller">
-    <div class="dpad">
-      <div></div>
-      <button onclick="send('forward')">⬆️</button>
-      <div></div>
-      <button onclick="send('left')">⬅️</button>
-      <div></div>
-      <button onclick="send('right')">➡️</button>
-      <div></div>
-      <button onclick="send('backward')">⬇️</button>
-      <div></div>
+  <!-- ── Top bar ────────────────────────────────────────────── -->
+  <header id="topbar">
+    <div id="logo">KIDA</div>
+    <div id="tabs">
+      <button class="tab active" onclick="setMode('USER')">USER CTRL</button>
+      <button class="tab" onclick="setMode('AUTONOMOUS')">AUTONOMOUS</button>
+      <button class="tab" onclick="setMode('LINE')">LINE FOLLOW</button>
     </div>
-
-    <div class="actions">
-      <div class="actions-row">
-        <button onclick="send('play_music')">🎵 Play</button>
-        <button onclick="send('stop_music')">⏹ Stop</button>
-        <button onclick="send('skip_music')">⏭ Skip</button>
+    <div id="led-dots">
+      <div class="led-dot" id="led0"></div>
+      <div class="led-dot" id="led1"></div>
+      <div class="led-dot" id="led2"></div>
+      <div class="led-dot" id="led3"></div>
+      <div class="led-dot" id="led4"></div>
+      <div class="led-dot" id="led5"></div>
+      <div class="led-dot" id="led6"></div>
+      <div class="led-dot" id="led7"></div>
+    </div>
+    <div id="topchips">
+      <div class="chip" id="chip-cpu">
+        <span class="cv" id="val-cpu">–%</span>
+        <span class="cl">CPU</span>
       </div>
-      <div class="actions-row">
-        <button onclick="send('photo')">📸 Photo</button>
-        <button onclick="send('video')">🎥 Video</button>
+      <div class="chip" id="chip-temp">
+        <span class="cv" id="val-temp">–°C</span>
+        <span class="cl">TEMP</span>
+      </div>
+      <div class="chip">
+        <span class="cv" id="val-thr">–</span>
+        <span class="cl">THR</span>
       </div>
     </div>
-  </div>
+  </header>
 
-  <div class="stats">
-    <div id="stats">Loading system stats...</div>
-  </div>
+  <!-- ── Left panel ─────────────────────────────────────────── -->
+  <aside id="left">
+    <div class="panel-inner">
 
-  <script>
-    function send(command) {
-      fetch('/control/send/', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({command})
-      });
+      <!-- QR -->
+      <div id="qr-block">
+        <img id="qr-img" src="" alt="QR">
+        <div id="qr-url">loading…</div>
+      </div>
+
+      <div class="sec-label">SYSTEM</div>
+
+      <div class="stat-row">
+        <span class="lbl">CPU</span>
+        <span class="val" id="stat-cpu">–%</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" id="bar-cpu" style="width:0%;background:var(--accent)"></div></div>
+
+      <div class="stat-row">
+        <span class="lbl">TEMP</span>
+        <span class="val" id="stat-temp">–°C</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" id="bar-temp" style="width:0%;background:var(--amber)"></div></div>
+
+      <div class="stat-row">
+        <span class="lbl">RAM</span>
+        <span class="val" id="stat-ram">–</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" id="bar-ram" style="width:0%;background:var(--blue)"></div></div>
+
+      <div class="divider"></div>
+      <div class="sec-label">NETWORK</div>
+
+      <div class="net-row"><span class="lbl">LATENCY</span><span class="val" id="net-lat">–</span></div>
+      <div class="net-row"><span class="lbl">THREADS</span><span class="val" id="net-thr">–</span></div>
+      <div class="net-row"><span class="lbl">DISK R</span><span class="val"  id="net-dr">–</span></div>
+      <div class="net-row"><span class="lbl">DISK W</span><span class="val"  id="net-dw">–</span></div>
+      <div class="net-row"><span class="lbl">BOOT</span><span class="val"    id="net-boot">–</span></div>
+
+      <div class="divider"></div>
+      <div class="sec-label">MUSIC</div>
+
+      <div id="track-name">No track</div>
+      <div id="waveform"></div>
+
+      <div class="btn-row">
+        <button class="btn full" id="btn-play" onclick="toggleMusic()">PLAY</button>
+        <button class="btn full" onclick="sendCmd('skip_music')">SKIP ▶</button>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- ── Centre panel ───────────────────────────────────────── -->
+  <main id="centre">
+    <div id="centre-inner">
+
+      <!-- Camera feed -->
+      <div id="cam-wrap" style="flex:1;min-height:0;">
+        <img src="/video_feed" alt="Camera feed" id="cam-img">
+        <div class="corner tl"></div>
+        <div class="corner tr"></div>
+        <div class="corner bl"></div>
+        <div class="corner br"></div>
+        <div id="rec-badge"><div id="rec-dot"></div> REC</div>
+        <div id="mode-overlay"></div>
+      </div>
+
+      <!-- Info strip -->
+      <div id="cam-info">
+        <div class="ci-item">
+          <span class="ci-lbl">DIRECTION</span>
+          <span class="ci-val" id="ci-dir">STOPPED</span>
+        </div>
+        <div class="ci-item">
+          <span class="ci-lbl">SPEED</span>
+          <span class="ci-val" id="ci-spd">0.6</span>
+        </div>
+        <div class="ci-item">
+          <span class="ci-lbl">MODE</span>
+          <span class="ci-val" id="ci-mode">USER</span>
+        </div>
+        <div class="ci-item">
+          <span class="ci-lbl">LED</span>
+          <span class="ci-val" id="ci-led">OFF</span>
+        </div>
+      </div>
+
+      <!-- Bottom waveform -->
+      <div id="centre-wave"></div>
+
+    </div>
+  </main>
+
+  <!-- ── Right panel ─────────────────────────────────────────── -->
+  <aside id="right">
+    <div class="panel-inner">
+
+      <div class="sec-label">DIRECTIONAL CONTROL</div>
+
+      <div id="dpad-wrap">
+        <div class="dp-btn" data-dir="forward"  onpointerdown="dpadDown('forward')"  onpointerup="dpadUp()">▲</div>
+        <div class="dp-btn" data-dir="left"     onpointerdown="dpadDown('left')"     onpointerup="dpadUp()">◀</div>
+        <div class="dp-btn stop-btn" data-dir="stop" onpointerdown="dpadDown('stop')" onpointerup="dpadUp()">■</div>
+        <div class="dp-btn" data-dir="right"    onpointerdown="dpadDown('right')"    onpointerup="dpadUp()">▶</div>
+        <div class="dp-btn" data-dir="backward" onpointerdown="dpadDown('backward')" onpointerup="dpadUp()">▼</div>
+      </div>
+
+      <div class="sec-label">SPEED</div>
+      <div id="speed-btns">
+        <button class="btn" data-spd="0.4" onclick="setSpeed(0.4)">1</button>
+        <button class="btn active" data-spd="0.6" onclick="setSpeed(0.6)">2</button>
+        <button class="btn" data-spd="0.8" onclick="setSpeed(0.8)">3</button>
+        <button class="btn" data-spd="1.0" onclick="setSpeed(1.0)">4</button>
+      </div>
+
+      <div class="sec-label">CONTROL SCHEME</div>
+      <div id="scheme-btns">
+        <button class="btn active" id="sch-wasd"  onclick="setScheme(1)">WASD</button>
+        <button class="btn"        id="sch-tank"  onclick="setScheme(2)">QA/WS</button>
+      </div>
+
+      <div class="sec-label">CAPTURE</div>
+      <div id="capture-btns">
+        <button class="btn blue" onclick="sendCmd('photo')">📷 PHOTO</button>
+        <button class="btn danger" id="btn-video" onclick="toggleVideo()">⏺ REC</button>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- ── Bottom bar ─────────────────────────────────────────── -->
+  <footer id="botbar">
+    <div class="sb-item"><div class="sb-ping"></div></div>
+    <div class="sb-item"><span class="sb-label">FLASK</span>&nbsp;<span class="sb-val">:5000</span></div>
+    <div class="sb-item"><span class="sb-label">MODE</span>&nbsp;<span class="sb-val" id="sb-mode">USER</span></div>
+    <div class="sb-item"><span class="sb-label">SPEED</span>&nbsp;<span class="sb-val" id="sb-speed">0.6</span></div>
+    <div class="sb-item"><span class="sb-label">CAM</span>&nbsp;<span class="sb-val" style="color:var(--green)">LIVE</span></div>
+    <div class="sb-item"><span class="sb-label">FRM</span>&nbsp;<span class="sb-val" id="sb-frame">0</span></div>
+    <div id="sb-version">KIDA v2.1 · RASPBERRY PI</div>
+  </footer>
+
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let currentMode    = 'USER';
+let currentScheme  = 1;
+let currentSpeed   = 0.6;
+let musicPlaying   = false;
+let videoRec       = false;
+let direction      = 'STOPPED';
+let frameCount     = 0;
+let heldDir        = null;
+let heldInterval   = null;
+let waveAnim       = 0;
+
+// ── Init waveform bars ────────────────────────────────────────────────────
+function initWave(id, count) {
+  const el = document.getElementById(id);
+  el.innerHTML = '';
+  for (let i = 0; i < count; i++) {
+    const b = document.createElement('div');
+    b.className = 'wbar';
+    el.appendChild(b);
+  }
+}
+initWave('waveform', 24);
+initWave('centre-wave', 80);
+
+// Animate waveforms
+function animateWaves() {
+  waveAnim++;
+  const bars  = document.querySelectorAll('#waveform .wbar');
+  const cbars = document.querySelectorAll('#centre-wave .wbar');
+
+  bars.forEach((b, i) => {
+    const h = musicPlaying
+      ? Math.round((Math.sin(waveAnim * 0.12 + i * 0.32) * 0.5 + 0.5) * 24 + 3)
+      : 2;
+    b.style.height = h + 'px';
+  });
+  cbars.forEach((b, i) => {
+    const h = musicPlaying
+      ? Math.round((Math.sin(waveAnim * 0.1 + i * 0.2) * 0.5 + 0.5) * 28 + 3)
+      : 2;
+    b.style.height = h + 'px';
+  });
+
+  frameCount++;
+  document.getElementById('sb-frame').textContent = frameCount;
+  requestAnimationFrame(animateWaves);
+}
+animateWaves();
+
+// ── QR code ────────────────────────────────────────────────────────────────
+(function() {
+  const url = `http://${location.hostname}:5000`;
+  document.getElementById('qr-url').textContent = url;
+  document.getElementById('qr-img').src =
+    `https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=${encodeURIComponent(url)}`;
+})();
+
+// ── Send command ───────────────────────────────────────────────────────────
+async function sendCmd(cmd) {
+  try {
+    await fetch('/command', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({command: cmd})
+    });
+  } catch(e) { console.warn('sendCmd failed', e); }
+}
+
+// ── D-pad ──────────────────────────────────────────────────────────────────
+function dpadDown(dir) {
+  document.querySelectorAll('.dp-btn').forEach(b => b.classList.remove('pressed'));
+  const btn = document.querySelector(`[data-dir="${dir}"]`);
+  if (btn) btn.classList.add('pressed');
+
+  sendCmd(dir === 'stop' ? 'stop' : dir);
+  updateDirection(dir.toUpperCase());
+
+  if (dir !== 'stop') {
+    clearInterval(heldInterval);
+    heldDir = dir;
+    heldInterval = setInterval(() => sendCmd(dir), 150);
+  }
+}
+
+function dpadUp() {
+  clearInterval(heldInterval);
+  heldDir = null;
+  document.querySelectorAll('.dp-btn').forEach(b => b.classList.remove('pressed'));
+  // Auto-stop when releasing directional
+  // sendCmd('stop'); // uncomment if you want auto-stop on release
+}
+
+// ── Mode tabs ──────────────────────────────────────────────────────────────
+function setMode(m) {
+  currentMode = m;
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const modes = ['USER','AUTONOMOUS','LINE'];
+    t.classList.toggle('active', modes[i] === m);
+  });
+  fetch('/mode', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({mode: m})
+  });
+  updateModeOverlay();
+}
+
+function updateModeOverlay() {
+  const ov = document.getElementById('mode-overlay');
+  if (currentMode === 'AUTONOMOUS') {
+    ov.textContent = '— AUTONOMOUS —'; ov.style.color = 'var(--teal)';
+    ov.classList.add('show');
+  } else if (currentMode === 'LINE') {
+    ov.textContent = '— LINE FOLLOW —'; ov.style.color = 'var(--blue)';
+    ov.classList.add('show');
+  } else {
+    ov.classList.remove('show');
+  }
+  document.getElementById('ci-mode').textContent  = currentMode;
+  document.getElementById('sb-mode').textContent  = currentMode;
+}
+
+// ── Speed ──────────────────────────────────────────────────────────────────
+function setSpeed(s) {
+  currentSpeed = s;
+  document.querySelectorAll('#speed-btns .btn').forEach(b => {
+    b.classList.toggle('active', parseFloat(b.dataset.spd) === s);
+  });
+  document.getElementById('ci-spd').textContent  = s.toFixed(1);
+  document.getElementById('sb-speed').textContent = s.toFixed(1);
+  fetch('/speed', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({speed: s})
+  });
+}
+
+// ── Scheme ─────────────────────────────────────────────────────────────────
+function setScheme(s) {
+  currentScheme = s;
+  document.getElementById('sch-wasd').classList.toggle('active', s===1);
+  document.getElementById('sch-tank').classList.toggle('active', s===2);
+}
+
+// ── Music ──────────────────────────────────────────────────────────────────
+function toggleMusic() {
+  musicPlaying = !musicPlaying;
+  const btn = document.getElementById('btn-play');
+  if (musicPlaying) {
+    btn.textContent = 'PAUSE';
+    btn.classList.add('active');
+    sendCmd('play_music');
+  } else {
+    btn.textContent = 'PLAY';
+    btn.classList.remove('active');
+    sendCmd('stop_music');
+  }
+  document.getElementById('waveform').classList.toggle('playing', musicPlaying);
+  document.getElementById('centre-wave').classList.toggle('playing', musicPlaying);
+  document.getElementById('track-name').classList.toggle('playing', musicPlaying);
+}
+
+// ── Video ──────────────────────────────────────────────────────────────────
+function toggleVideo() {
+  videoRec = !videoRec;
+  const btn = document.getElementById('btn-video');
+  const badge = document.getElementById('rec-badge');
+  if (videoRec) {
+    btn.textContent = '⏹ STOP';
+    btn.classList.add('active');
+    badge.classList.add('show');
+    sendCmd('video_start');
+  } else {
+    btn.textContent = '⏺ REC';
+    btn.classList.remove('active');
+    badge.classList.remove('show');
+    sendCmd('video_stop');
+  }
+}
+
+// ── Direction display ──────────────────────────────────────────────────────
+function updateDirection(dir) {
+  direction = dir;
+  const el = document.getElementById('ci-dir');
+  el.textContent = dir;
+  el.classList.toggle('moving', dir !== 'STOPPED');
+
+  // Highlight active dpad button
+  document.querySelectorAll('.dp-btn').forEach(b => {
+    b.classList.toggle('active-dir',
+      b.dataset.dir?.toUpperCase() === dir && dir !== 'STOPPED');
+  });
+}
+
+// ── LED dots ───────────────────────────────────────────────────────────────
+function updateLeds(color) {
+  const [r, g, b] = color;
+  const on = r > 10 || g > 10 || b > 10;
+  const hex = on ? `rgb(${r},${g},${b})` : '';
+  document.querySelectorAll('.led-dot').forEach(d => {
+    d.style.background  = on ? hex : 'var(--dim)';
+    d.style.boxShadow   = on ? `0 0 8px ${hex}` : '';
+    d.style.color       = hex;
+    d.classList.toggle('on', on);
+  });
+  const ledEl = document.getElementById('ci-led');
+  ledEl.textContent = on ? `R${r} G${g} B${b}` : 'OFF';
+  ledEl.style.color = on ? hex : '';
+}
+
+// ── Keyboard control ───────────────────────────────────────────────────────
+const keyMap = { w:'forward', s:'backward', a:'left', d:'right', ' ':'stop',
+                 ArrowUp:'forward', ArrowDown:'backward',
+                 ArrowLeft:'left', ArrowRight:'right' };
+const held = new Set();
+
+document.addEventListener('keydown', e => {
+  if (held.has(e.key)) return;
+  held.add(e.key);
+  const dir = keyMap[e.key];
+  if (dir) { sendCmd(dir); updateDirection(dir.toUpperCase()); }
+  if (e.key === 'm') toggleMusic();
+  if (e.key === 'c') sendCmd('photo');
+  if (e.key === 'v') toggleVideo();
+  if (e.key === 'x') {
+    const spds = [0.4, 0.6, 0.8, 1.0];
+    const idx  = spds.indexOf(currentSpeed);
+    setSpeed(spds[(idx + 1) % spds.length]);
+  }
+});
+
+document.addEventListener('keyup', e => {
+  held.delete(e.key);
+  if (keyMap[e.key] && keyMap[e.key] !== 'stop') {
+    updateDirection('STOPPED');
+    // sendCmd('stop'); // uncomment for auto-stop on key release
+  }
+});
+
+// ── Status polling ─────────────────────────────────────────────────────────
+async function pollStatus() {
+  try {
+    const r = await fetch('/status');
+    const d = await r.json();
+
+    // Direction / mode
+    updateDirection(d.direction || 'STOPPED');
+    if (d.led) updateLeds(d.led);
+
+    // Music state sync
+    if (d.music_playing !== musicPlaying) {
+      musicPlaying = d.music_playing;
+      const btn = document.getElementById('btn-play');
+      btn.textContent = musicPlaying ? 'PAUSE' : 'PLAY';
+      btn.classList.toggle('active', musicPlaying);
+      document.getElementById('waveform').classList.toggle('playing', musicPlaying);
+      document.getElementById('centre-wave').classList.toggle('playing', musicPlaying);
     }
 
-    async function fetchStats() {
-      const res = await fetch('/control/stats/');
-      const data = await res.json();
-      document.getElementById('stats').innerHTML = data.stats.map(s => `<div>${s}</div>`).join('');
+    // Video state sync
+    if (d.video_rec !== videoRec) {
+      videoRec = d.video_rec;
+      const btn   = document.getElementById('btn-video');
+      const badge = document.getElementById('rec-badge');
+      btn.textContent = videoRec ? '⏹ STOP' : '⏺ REC';
+      btn.classList.toggle('active', videoRec);
+      badge.classList.toggle('show', videoRec);
     }
 
-    setInterval(fetchStats, 2000);
-    fetchStats();
-  </script>
+  } catch(e) { /* offline */ }
+}
+
+// Stats polling (separate endpoint)
+async function pollStats() {
+  try {
+    const r = await fetch('/control/stats/');
+    const d = await r.json();
+    const s = d.stats || {};
+
+    const cpu  = (s.cpu  || 0).toFixed(0);
+    const temp = (s.temp || 0).toFixed(0);
+    const ru   = s.ram_used  || 0;
+    const rt   = s.ram_total || 1;
+    const rp   = Math.min(ru / rt, 1);
+
+    document.getElementById('val-cpu').textContent   = cpu + '%';
+    document.getElementById('val-temp').textContent  = temp + '°C';
+    document.getElementById('val-thr').textContent   = s.threads || '–';
+    document.getElementById('stat-cpu').textContent  = cpu + '%';
+    document.getElementById('stat-temp').textContent = temp + '°C';
+    document.getElementById('stat-ram').textContent  = `${ru}/${rt}M`;
+    document.getElementById('bar-cpu').style.width   = cpu + '%';
+    document.getElementById('bar-temp').style.width  = (parseFloat(temp)/85*100).toFixed(0) + '%';
+    document.getElementById('bar-ram').style.width   = (rp*100).toFixed(0) + '%';
+    document.getElementById('net-lat').textContent   = s.latency  || '–';
+    document.getElementById('net-thr').textContent   = s.threads  || '–';
+    document.getElementById('net-dr').textContent    = (s.disk_read  || 0) + ' MB';
+    document.getElementById('net-dw').textContent    = (s.disk_write || 0) + ' MB';
+    document.getElementById('net-boot').textContent  = s.boot_time || '–';
+
+    document.getElementById('chip-temp').classList.toggle('warn', parseFloat(temp) > 65);
+
+  } catch(e) { /* offline */ }
+}
+
+setInterval(pollStatus, 800);
+setInterval(pollStats,  2000);
+pollStatus();
+pollStats();
+</script>
 </body>
 </html>

@@ -142,6 +142,12 @@ class ObstacleAvoidance:
         return True
 
     def _graduated_speed(self, distance: float) -> float:
-        """Scale speed linearly between min and max based on proximity."""
-        ratio = min(distance / self.threshold, 1.0)
-        return self.min_speed + (self.max_speed - self.min_speed) * ratio
+        """
+        Scale speed linearly between min_speed and max_speed based on distance.
+        The further the obstacle, the faster the robot moves.
+        """
+        if distance >= self.threshold * 1.5:
+            return self.max_speed
+        # Linear interpolation between min_speed and max_speed
+        speed = self.min_speed + (self.max_speed - self.min_speed) * (distance / self.threshold)
+        return min(max(speed, self.min_speed), self.max_speed)
