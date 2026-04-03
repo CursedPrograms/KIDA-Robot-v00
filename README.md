@@ -72,9 +72,6 @@ This document describes the GPIO pin assignments for the KIDA robot.
 
 *Note:* These pins correspond to the constructor defaults:
 
-```python
-def __init__(self, left_pins=(24, 23), right_pins=(5, 6)):
-
 ## How to Run:
 
 ```bash
