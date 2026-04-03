@@ -29,12 +29,14 @@
 - [NORA-Robot-v00](https://github.com/CursedPrograms/NORA-Robot-v00)
 - [ComCentre](https://github.com/CursedPrograms/ComCentre)
 
+ <br>
 <div align="center">
   <img src="images/bg.jpg" alt="KIDA Robot" width="400"/>
 </div>
+ <br>
 
-pip install flask picamera2 opencv-python psutil
-python server.py
+- pip install flask picamera2 opencv-python psutil
+- python server.py
 # then open http://<pi-ip>:5000 on any device on your network
 
 
@@ -42,12 +44,14 @@ python server.py
 
 - 🎮 Remote Control
 - 🖥️ VNC Control
+- Web Control
 - 📸 Image Capture (Photograph)
 - 🎥 Video Recording
 - 📡 Ultrasonic Obstacle Detection
-- ➖ Line Following
+- Line Following
 - 📺 Live Video Streaming
 - 🌈 RGB Lighting Control
+- Gender/Age Detection
 
 ## 🧩 Hardware Components
 
