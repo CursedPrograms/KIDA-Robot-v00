@@ -140,6 +140,10 @@ Unix-like systems (Linux/macOS):
 
 ### Network Setup
 
+<div align="center">
+  <img src="images/screenshot.png" alt="KIDA Robot" width="400"/>
+</div>
+
 - 📡 SSID: KIDAv00
 - 🔒 Password: 12345678
 - 🌐 Access your site at: http://192.168.4.1:5000
