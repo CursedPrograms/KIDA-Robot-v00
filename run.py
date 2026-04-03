@@ -197,7 +197,7 @@ def main():
     stats_thread = threading.Thread(target=stats_updater, daemon=True)
     stats_thread.start()
 
-    bg = pygame.image.load("/home/nova/Desktop/kida/images/bg.jpeg")
+    bg = pygame.image.load("/home/nova/Desktop/kida/images/bg.jpg")
     bg = pygame.transform.scale(bg, (960, 640))
 
     music = MusicPlayer("/home/nova/Desktop/kida/audio/music/")
