@@ -15,10 +15,10 @@ from PIL import Image
 from picamera2 import Picamera2
 from flask import Flask, render_template, jsonify, request
 
-from music_player import MusicPlayer
-from motor_control import MotorController
-from obstacle_avoidance import ObstacleAvoidance
-from led_control import SPI_WS2812_LEDStrip
+from scripts.music_player import MusicPlayer
+from scripts.motor_control import MotorController
+from scripts.obstacle_avoidance import ObstacleAvoidance
+from scripts.led_control import SPI_WS2812_LEDStrip
 
 # ══════════════════════════════════════════════════════════════
 #  PALETTE
