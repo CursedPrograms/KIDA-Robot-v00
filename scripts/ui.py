@@ -1,490 +1,843 @@
+"""
+KIDA — main UI
+Fullscreen pygame dashboard + Flask web-control server.
+"""
+
 import os
 import time
-import pygame
-import numpy
-import psutil
-import socket
+import math
 import queue
+import socket
+import logging
 import threading
-import qrcode
-from PIL import Image
 import subprocess
 import datetime
+import warnings
 
-from scripts.music_player import MusicPlayer
-from scripts.motor_control import MotorController
-from scripts.obstacle_avoidance import ObstacleAvoidance
-from scripts.led_control import SPI_WS2812_LEDStrip
+# Suppress gpiozero ultrasonic / PWM fallback warnings at import time
+warnings.filterwarnings("ignore", category=UserWarning)
+
+import pygame
+import numpy as np
+import psutil
+import qrcode
+from PIL import Image
 from picamera2 import Picamera2
+from picamera2.encoders import H264Encoder
+from picamera2.outputs import FfmpegOutput
+from flask import Flask, jsonify, request
 
-from flask import Flask, render_template, jsonify, request
+from mode_control       import Mode
+from music_player       import MusicPlayer
+from motor_control      import MotorController
+from obstacle_avoidance import ObstacleAvoidance
+from line_follower      import LineFollower
+from led_control        import SPI_WS2812_LEDStrip
+from audio_analysis     import AudioAnalyzer
 
-# Flask app setup
-app = Flask(__name__, static_folder='static', template_folder='templates')
-command_queue = queue.Queue()
+# ── Logging ───────────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger("kida.ui")
 
-#rework ai and show camera in screen
+# ── Palette ───────────────────────────────────────────────────────────────────
+BG     = (8,   9,  13)
+PANEL  = (12,  13,  20)
+BORDER = (28,  30,  44)
+ACCENT = (255,  30, 100)
+GREEN  = (29,  158, 117)
+BLUE   = (55,  138, 221)
+AMBER  = (255, 144,  32)
+RED    = (226,  75,  74)
+TEAL   = (20,  180, 160)
+PRI    = (220, 220, 215)
+SEC    = (120, 122, 115)
+DIM    = (52,   54,  64)
 
-@app.route('/')
+# ── Flask ─────────────────────────────────────────────────────────────────────
+app           = Flask(__name__, static_folder="static", template_folder="templates")
+command_queue: queue.Queue = queue.Queue()
+
+
+@app.route("/")
 def home():
-    return render_template('index.html')
+    return jsonify({"status": "online", "robot": "KIDA"})
 
-@app.route('/status')
+
+@app.route("/status")
 def status():
-    return jsonify({
-        'status': 'online',
-        'robot': 'KIDA',
-        'message': 'All systems go!'
-    })
+    return jsonify({"status": "online", "robot": "KIDA"})
 
-@app.route('/command', methods=['POST'])
+
+@app.route("/command", methods=["POST"])
 def receive_command():
-    data = request.get_json()
-    command = data.get('command')
-    print(f"📡 Received command: {command}")
-    command_queue.put(command)
-    return jsonify({'received': command, 'status': 'queued'})
+    try:
+        cmd = request.get_json(force=True).get("command", "")
+        command_queue.put(cmd)
+        return jsonify({"received": cmd, "status": "queued"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
-@app.route('/control/send/', methods=['POST'])
+
+@app.route("/control/send/", methods=["POST"])
 def control_send():
-    data = request.get_json()
-    command = data.get('command')
-    print(f"📡 Received command (control/send): {command}")
-    command_queue.put(command)
-    return jsonify({'received': command, 'status': 'executed'})
+    try:
+        cmd = request.get_json(force=True).get("command", "")
+        command_queue.put(cmd)
+        return jsonify({"received": cmd, "status": "queued"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
-@app.route('/control/stats/', methods=['GET'])
+
+@app.route("/control/stats/", methods=["GET"])
 def control_stats():
-    with stats_lock:
-        stats_copy = system_stats.copy()
-    return jsonify({'stats': stats_copy})
+    with _stats_lock:
+        return jsonify({"stats": _system_stats.copy()})
 
-def run_flask_server():
-    app.run(host='0.0.0.0', port=5000, debug=False)
 
-def get_local_ip():
+def _run_flask() -> None:
+    import logging as _log
+    _log.getLogger("werkzeug").setLevel(_log.ERROR)
+    app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)
+
+
+# ── System stats thread ───────────────────────────────────────────────────────
+_system_stats: dict = {}
+_stats_lock          = threading.Lock()
+
+
+def _get_local_ip() -> str:
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
         ip = s.getsockname()[0]
         s.close()
         return ip
-    except:
+    except Exception:
         return "N/A"
 
-def get_system_stats():
-    try:
-        cpu_usage = psutil.cpu_percent()
-        with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
-            cpu_temp = int(f.read()) / 1000.0
-        mem = psutil.virtual_memory()
-        ram_used = mem.used // (1024 * 1024)
-        ram_total = mem.total // (1024 * 1024)
-        ip_address = get_local_ip()
 
-        disk_io = psutil.disk_io_counters()
-        boot_time = datetime.datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S")
-        threads = threading.active_count()
-
-        # Ping Google for latency (blocking - moved to thread)
-        try:
-            ping = subprocess.check_output(["ping", "-c", "1", "8.8.8.8"], timeout=1).decode()
-            latency_line = [line for line in ping.split("\n") if "time=" in line]
-            latency = latency_line[0].split("time=")[1].split(" ")[0] + " ms" if latency_line else "N/A"
-        except:
-            latency = "N/A"
-
-        return {
-            "cpu": cpu_usage,
-            "temp": cpu_temp,
-            "ram_used": ram_used,
-            "ram_total": ram_total,
-            "ip": ip_address,
-            "disk_read_mb": round(disk_io.read_bytes / 1024 / 1024, 1),
-            "disk_write_mb": round(disk_io.write_bytes / 1024 / 1024, 1),
-            "boot_time": boot_time,
-            "latency": latency,
-            "threads": threads,
-        }
-    except Exception as e:
-        return {"error": str(e)}
-
-def draw_system_stats(screen, font, stats):
-    lines = [
-        f"🧠 CPU Usage: {stats.get('cpu', 'N/A')}%",
-        f"🌡️ CPU Temp: {stats.get('temp', 'N/A')}°C",
-        f"📦 RAM Usage: {stats.get('ram_used', 'N/A')}/{stats.get('ram_total', 'N/A')} MB",
-        f"🌐 IP Address: {stats.get('ip', 'N/A')}",
-        f"📂 Disk Read: {stats.get('disk_read_mb', 'N/A')} MB",
-        f"📁 Disk Write: {stats.get('disk_write_mb', 'N/A')} MB",
-        f"🕓 Last Boot: {stats.get('boot_time', 'N/A')}",
-        f"🔁 Active Threads: {stats.get('threads', 'N/A')}",
-        f"🌐 Network Latency: {stats.get('latency', 'N/A')}",
-    ]
-
-    for i, line in enumerate(lines):
-        text = font.render(line, True, (255, 255, 255))
-        screen.blit(text, (750, 10 + i * 22))
-
-def draw_waveform(screen, frame, rect, bars=50, max_height=100):
-    import math
-    amplitudes = [(math.sin(frame * 0.1 + i * 0.3) + 1) / 2 for i in range(bars)]
-    bar_width = rect.width // bars
-    surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
-    for i, amp in enumerate(amplitudes):
-        bar_height = int(amp * max_height)
-        x = i * bar_width
-        y = rect.height - bar_height
-        pygame.draw.rect(surface, (255, 20, 147, 128), (x, y, bar_width - 2, bar_height))
-    screen.blit(surface, (rect.x, rect.y))
-
-def qr_to_pygame_surface(data, size=150):
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=10,
-        border=4,
-    )
-    qr.add_data(data)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-
-    img = img.resize((size, size), Image.LANCZOS)
-
-    mode = img.mode
-    size = img.size
-    data = img.tobytes()
-
-    if mode == "RGB":
-        surface = pygame.image.fromstring(data, size, mode)
-    elif mode == "L":
-        surface = pygame.image.fromstring(data, size, mode)
-        surface = pygame.Surface.convert(surface)
-    else:
-        img = img.convert("RGB")
-        data = img.tobytes()
-        surface = pygame.image.fromstring(data, img.size, "RGB")
-
-    return surface
-
-# Global variables for system stats
-system_stats = {}
-stats_lock = threading.Lock()
-
-def stats_updater():
-    global system_stats
+def _stats_worker() -> None:
     while True:
-        new_stats = get_system_stats()
-        with stats_lock:
-            system_stats = new_stats
-        time.sleep(1)  # update every second
+        try:
+            cpu  = psutil.cpu_percent()
+            mem  = psutil.virtual_memory()
+            dio  = psutil.disk_io_counters()
+            with open("/sys/class/thermal/thermal_zone0/temp") as f:
+                temp = int(f.read()) / 1000.0
+            try:
+                out  = subprocess.check_output(
+                    ["ping", "-c", "1", "-W", "1", "8.8.8.8"], timeout=1.5
+                ).decode()
+                line = next((l for l in out.splitlines() if "time=" in l), "")
+                lat  = line.split("time=")[1].split()[0] + " ms" if line else "N/A"
+            except Exception:
+                lat = "N/A"
+
+            with _stats_lock:
+                _system_stats.update({
+                    "cpu":        cpu,
+                    "temp":       temp,
+                    "ram_used":   mem.used  // (1024 * 1024),
+                    "ram_total":  mem.total // (1024 * 1024),
+                    "ip":         _get_local_ip(),
+                    "disk_read":  round(dio.read_bytes  / 1024 / 1024, 1),
+                    "disk_write": round(dio.write_bytes / 1024 / 1024, 1),
+                    "boot_time":  datetime.datetime.fromtimestamp(
+                                      psutil.boot_time()).strftime("%H:%M %d/%m"),
+                    "latency":    lat,
+                    "threads":    threading.active_count(),
+                })
+        except Exception as e:
+            logger.warning("Stats error: %s", e)
+        time.sleep(1)
 
 
-def main():
+# ── Helpers ───────────────────────────────────────────────────────────────────
+def _make_qr(url: str, size: int = 110) -> pygame.Surface:
+    qr = qrcode.QRCode(version=1,
+                       error_correction=qrcode.constants.ERROR_CORRECT_L,
+                       box_size=10, border=3)
+    qr.add_data(url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
+    img = img.resize((size, size), Image.LANCZOS)
+    return pygame.image.fromstring(img.tobytes(), img.size, "RGB")
+
+
+def _cam_to_surface(cam: Picamera2, w: int, h: int) -> pygame.Surface:
+    try:
+        frame = cam.capture_array()
+        if frame.ndim == 3 and frame.shape[2] == 4:
+            frame = frame[:, :, :3]
+        pil = Image.fromarray(frame, "RGB").rotate(180)
+        pil = pil.resize((w, h), Image.BILINEAR)
+        return pygame.image.fromstring(pil.tobytes(), pil.size, "RGB")
+    except Exception:
+        s = pygame.Surface((w, h))
+        s.fill((8, 10, 16))
+        return s
+
+
+# ── Draw primitives ───────────────────────────────────────────────────────────
+def _rect_panel(surf, r, radius=6):
+    pygame.draw.rect(surf, PANEL,  r, border_radius=radius)
+    pygame.draw.rect(surf, BORDER, r, width=1, border_radius=radius)
+
+
+def _hline(surf, y, x0, x1, color=BORDER):
+    pygame.draw.line(surf, color, (x0, y), (x1, y))
+
+
+def _vline(surf, x, y0, y1, color=BORDER):
+    pygame.draw.line(surf, color, (x, y0), (x, y1))
+
+
+def _txt(surf, font, text, pos, color=PRI, anchor="topleft"):
+    s = font.render(str(text), True, color)
+    r = s.get_rect(**{anchor: pos})
+    surf.blit(s, r)
+    return r
+
+
+def _bar(surf, r, pct, color, track=(22, 24, 36)):
+    pygame.draw.rect(surf, track, r, border_radius=2)
+    fw = max(int(r.width * min(pct, 1.0)), 0)
+    if fw:
+        pygame.draw.rect(surf, color,
+                         pygame.Rect(r.x, r.y, fw, r.height),
+                         border_radius=2)
+
+
+def _led_dot(surf, pos, color, r=5):
+    pygame.draw.circle(surf, color, pos, r)
+    if any(c > 10 for c in color):
+        g = pygame.Surface((r * 4, r * 4), pygame.SRCALPHA)
+        pygame.draw.circle(g, (*color, 55), (r * 2, r * 2), r * 2)
+        surf.blit(g, (pos[0] - r * 2, pos[1] - r * 2))
+
+
+def _waveform(surf, frame: int, r: pygame.Rect, bars: int = 60,
+              playing: bool = False, amplitudes: list | None = None):
+    bw = max(r.width // bars, 1)
+    for i in range(bars):
+        if amplitudes is not None:
+            idx = int(i * len(amplitudes) / bars)
+            h   = max(int(amplitudes[idx] * r.height * 0.95), 2)
+            a   = 200
+        elif playing:
+            h = int((math.sin(frame * 0.14 + i * 0.32) * 0.5 + 0.5)
+                    * r.height * 0.88 + 2)
+            a = 160
+        else:
+            h, a = 2, 40
+        x = r.x + i * bw
+        y = r.y + r.height - h
+        s = pygame.Surface((max(bw - 1, 1), h), pygame.SRCALPHA)
+        s.fill((*ACCENT, a))
+        surf.blit(s, (x, y))
+
+
+def _grid(surf, w, h, step=40):
+    gc = (18, 10, 16)
+    for x in range(0, w + 1, step):
+        pygame.draw.line(surf, gc, (x, 0), (x, h))
+    for y in range(0, h + 1, step):
+        pygame.draw.line(surf, gc, (0, y), (w, y))
+
+
+def _btn(surf, font, label, r, mouse, active=False, danger=False, hover_col=ACCENT):
+    hov = r.collidepoint(mouse)
+    if danger:
+        bc, bd, tc = (22, 8, 8), RED, RED
+    elif hov or active:
+        bc, bd, tc = (20, 9, 16), hover_col, hover_col
+    else:
+        bc, bd, tc = PANEL, BORDER, SEC
+    pygame.draw.rect(surf, bc, r, border_radius=6)
+    pygame.draw.rect(surf, bd, r, width=1, border_radius=6)
+    if active:
+        strip = pygame.Rect(r.x + 4, r.bottom - 2, r.width - 8, 2)
+        pygame.draw.rect(surf, hover_col if not danger else RED, strip, border_radius=1)
+    s = font.render(label, True, tc)
+    surf.blit(s, (r.x + (r.width - s.get_width()) // 2,
+                  r.y + (r.height - s.get_height()) // 2))
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+def main() -> None:
     pygame.init()
-    screen = pygame.display.set_mode((960, 640))
-    pygame.display.set_caption("KIDA Controller")
+
+    info   = pygame.display.Info()
+    W, H   = info.current_w, info.current_h
+    screen = pygame.display.set_mode(
+        (W, H), pygame.FULLSCREEN | pygame.HWSURFACE | pygame.DOUBLEBUF)
+    pygame.display.set_caption("KIDA")
     clock = pygame.time.Clock()
-    font = pygame.font.SysFont("Arial", 20)
 
-    # Start Flask server in background thread
-    flask_thread = threading.Thread(target=run_flask_server)
-    flask_thread.daemon = True
-    flask_thread.start()
-    print("🌐 Flask server started on http://0.0.0.0:5000")
+    # ── Layout ────────────────────────────────────────────────
+    TOP_H  = 48
+    BOT_H  = 56
+    STAT_H = 22
+    WAVE_H = BOT_H - STAT_H
+    L_W    = 230
+    R_W    = 260
+    CAM_X  = L_W
+    CAM_Y  = TOP_H
+    CAM_W  = W - L_W - R_W
+    CAM_H  = H - TOP_H - BOT_H
+    LP_X   = 8
+    LP_W   = L_W - 16
+    RP_X   = W - R_W + 12
+    RP_W   = R_W - 24
 
-    # Start system stats updater thread
-    stats_thread = threading.Thread(target=stats_updater, daemon=True)
-    stats_thread.start()
+    # ── Fonts ─────────────────────────────────────────────────
+    fmono_lg = pygame.font.SysFont("Courier New", 22, bold=True)
+    fmono_md = pygame.font.SysFont("Courier New", 13, bold=True)
+    fmono_sm = pygame.font.SysFont("Courier New", 11)
+    fmono_xs = pygame.font.SysFont("Courier New", 10)
+    fbody    = pygame.font.SysFont("Arial", 13)
+    flabel   = pygame.font.SysFont("Arial", 11)
+    fdpad    = pygame.font.SysFont("Arial", 20, bold=True)
 
-    bg = pygame.image.load("/home/nova/Desktop/kida/images/bg.jpeg")
-    bg = pygame.transform.scale(bg, (960, 640))
+    # ── Background threads ────────────────────────────────────
+    threading.Thread(target=_run_flask,    daemon=True).start()
+    threading.Thread(target=_stats_worker, daemon=True).start()
+    logger.info("Flask server started on :5000")
 
-    music = MusicPlayer("/home/nova/Desktop/kida/audio/music/")
+    # ── Hardware ──────────────────────────────────────────────
+    music  = MusicPlayer("/home/nova/Desktop/kida/audio/music/")
     motors = MotorController()
-    obstacle_avoid = ObstacleAvoidance(motors=motors)
-    led = SPI_WS2812_LEDStrip(8, 128)
-    cam = Picamera2()
-    cam.start_preview()
-    cam.start()
-    
-    #cam_nav = CameraNavigator(cam, motors, speed=0.6)
 
-    if not led.check_spi_state():
-        print("SPI init failed. Exiting.")
+    try:
+        avoider = ObstacleAvoidance(motors=motors)
+    except Exception as e:
+        logger.warning("ObstacleAvoidance init failed: %s — autonomous mode disabled", e)
+        avoider = None
+
+    try:
+        liner = LineFollower(motors=motors)
+    except Exception as e:
+        logger.warning("LineFollower init failed: %s — line follow mode disabled", e)
+        liner = None
+
+    led = SPI_WS2812_LEDStrip(8, 128)
+
+    # Camera — flipped 180 via transform in config
+    cam = Picamera2()
+    cfg = cam.create_preview_configuration(
+        main={"size": (640, 480)},
+        transform=__import__("libcamera").Transform(hflip=1, vflip=1)
+    )
+    cam.configure(cfg)
+    cam.start()
+
+    # Video encoder (reused across recordings)
+    _encoder = H264Encoder(bitrate=4000000)
+
+    if not led.ready:
+        logger.error("SPI LED strip not ready — exiting.")
+        pygame.quit()
         return
 
-    qr_url = "http://0.0.0.0:5000"
-    qr_surface = qr_to_pygame_surface(qr_url)
+    # ── QR code ───────────────────────────────────────────────
+    local_ip = _get_local_ip()
+    qr_surf  = _make_qr(f"http://{local_ip}:5000", size=110)
 
-    MODE_MENU = 0
-    MODE_USER = 1
-    MODE_AUTO = 2
-    MODE_CAM_AVOID = 3
-    BRIGHT_PINK = (255, 20, 147)
-
-    def draw_button(screen, font, text, rect, mouse, frame, base=BRIGHT_PINK, hover=(255, 105, 180)):
-        pulse = 50 + int(50 * (1 + numpy.sin(frame * 0.1)) / 2)
-        color_base = hover if rect.collidepoint(mouse) else base
-        color = tuple(min(255, max(0, c + pulse - 50)) for c in color_base)
-        pygame.draw.rect(screen, color, rect, border_radius=10)
-        label = font.render(text, True, (255, 255, 255))
-        screen.blit(label, (rect.x + 10, rect.y + 10))
-
-    mode = MODE_MENU
-    speed_levels = [0.4, 0.6, 0.8, 1.0]
-    speed_idx = 0
-    speed = speed_levels[speed_idx]
-    control_mode = 1
-    music_playing = False
-    frame = 0
-
-    photos_dir = "/home/nova/Desktop/kida/photos" #make paths relative
-    videos_dir = "/home/nova/Desktop/kida/videos" #make paths relative
+    # ── Directories ───────────────────────────────────────────
+    photos_dir = "/home/nova/Desktop/kida/photos"
+    videos_dir = "/home/nova/Desktop/kida/videos"
     os.makedirs(photos_dir, exist_ok=True)
     os.makedirs(videos_dir, exist_ok=True)
 
-    btns = {
-        "user_mode": pygame.Rect(250, 200, 200, 60),
-        "auto_mode": pygame.Rect(510, 200, 200, 60),
-        "music": pygame.Rect(30, 400, 180, 40),
-        "skip": pygame.Rect(30, 460, 180, 40),
-        "speed": pygame.Rect(230, 400, 180, 40),
-        "switch_control": pygame.Rect(430, 400, 220, 40),
-        "back": pygame.Rect(30, 20, 100, 30),
-        "photo": pygame.Rect(750, 400, 100, 40),
-        "video": pygame.Rect(870, 400, 100, 40),
-        "cam_mode": pygame.Rect(380, 280, 200, 60),
+    # ── State ─────────────────────────────────────────────────
+    mode          = Mode.USER
+    speed_levels  = [0.4, 0.6, 0.8, 1.0]
+    speed_idx     = 0
+    speed         = speed_levels[speed_idx]
+    ctrl_scheme   = 1
+    music_playing = False
+    video_rec     = False
+    frame         = 0
+    direction     = "STOPPED"
+    led_color     = (0, 0, 0)
+    cam_surf      = pygame.Surface((CAM_W, CAM_H))
+    cam_surf.fill((8, 10, 14))
+    cam_tick      = 0
+    analyzer: AudioAnalyzer | None = None
+
+    TAB_LABELS = ["🕹  USER CONTROL", "🤖  AUTONOMOUS", "〰  LINE FOLLOW"]
+
+    # ── Button layout ─────────────────────────────────────────
+    tab_w   = 130
+    tab_gap = 8
+    tab_y   = (TOP_H - 30) // 2
+    tabs    = [
+        pygame.Rect(L_W + 8 + i * (tab_w + tab_gap), tab_y, tab_w, 30)
+        for i in range(len(TAB_LABELS))
+    ]
+
+    DP_Y  = TOP_H + 24
+    DP_S  = 52
+    DP_G  = 6
+    DP_CX = RP_X + RP_W // 2 - DP_S // 2
+    dpad  = {
+        "forward":  pygame.Rect(DP_CX,               DP_Y,                      DP_S, DP_S),
+        "left":     pygame.Rect(DP_CX - DP_S - DP_G, DP_Y + DP_S + DP_G,       DP_S, DP_S),
+        "stop":     pygame.Rect(DP_CX,               DP_Y + DP_S + DP_G,        DP_S, DP_S),
+        "right":    pygame.Rect(DP_CX + DP_S + DP_G, DP_Y + DP_S + DP_G,       DP_S, DP_S),
+        "backward": pygame.Rect(DP_CX,               DP_Y + (DP_S + DP_G) * 2,  DP_S, DP_S),
     }
+    DPAD_GLYPHS = {"forward": "▲", "left": "◀", "stop": "■", "right": "▶", "backward": "▼"}
 
-    def take_photo():
-        filename = os.path.join(photos_dir, f"photo_{int(time.time())}.jpg")
-        cam.capture_file(filename)
-        print(f"📸 Photo saved: {filename}")
+    spd_y    = DP_Y + (DP_S + DP_G) * 3 + 22
+    spd_w    = (RP_W - DP_G * 3) // 4
+    spd_dots = [pygame.Rect(RP_X + i * (spd_w + DP_G), spd_y, spd_w, 32) for i in range(4)]
 
-    video_recording = False
-    video_file_name = None
+    sch_y    = spd_y + 48
+    sch_w    = (RP_W - DP_G) // 2
+    sch_btns = [
+        pygame.Rect(RP_X,                sch_y, sch_w, 30),
+        pygame.Rect(RP_X + sch_w + DP_G, sch_y, sch_w, 30),
+    ]
 
-    def toggle_video_recording():
-        nonlocal video_recording, video_file_name
-        if not video_recording:
-            video_file_name = os.path.join(videos_dir, f"video_{int(time.time())}.h264")
-            cam.start_recording(video_file_name)
-            video_recording = True
-            print(f"🎥 Started recording video: {video_file_name}")
+    pv_y      = sch_y + 48
+    pv_w      = (RP_W - DP_G) // 2
+    btn_photo = pygame.Rect(RP_X,               pv_y, pv_w, 34)
+    btn_video = pygame.Rect(RP_X + pv_w + DP_G, pv_y, pv_w, 34)
+
+    mus_base = TOP_H + 130
+    btn_play = pygame.Rect(LP_X,                        mus_base + 38, (LP_W - 6) // 2, 30)
+    btn_skip = pygame.Rect(LP_X + (LP_W - 6) // 2 + 6, mus_base + 38, (LP_W - 6) // 2, 30)
+
+    # ── Closures ──────────────────────────────────────────────
+    def take_photo() -> None:
+        fname = os.path.join(photos_dir, f"photo_{int(time.time())}.jpg")
+        try:
+            cam.capture_file(fname)
+            logger.info("Photo saved: %s", fname)
+        except Exception as e:
+            logger.error("Photo failed: %s", e)
+
+    def toggle_video() -> None:
+        nonlocal video_rec
+        if not video_rec:
+            fname = os.path.join(videos_dir, f"video_{int(time.time())}.mp4")
+            try:
+                output = FfmpegOutput(fname)
+                cam.start_encoder(_encoder, output)
+                video_rec = True
+                logger.info("Recording started: %s", fname)
+            except Exception as e:
+                logger.error("Video start failed: %s", e)
         else:
-            cam.stop_recording()
-            video_recording = False
-            print(f"🛑 Stopped recording video: {video_file_name}")
-            video_file_name = None
+            try:
+                cam.stop_encoder()
+            except Exception as e:
+                logger.error("Video stop failed: %s", e)
+            video_rec = False
+            logger.info("Recording stopped")
 
+    def set_led(color: tuple) -> None:
+        nonlocal led_color
+        led_color = color
+        led.set_all_led_color(*color)
+
+    def _process_command(cmd: str) -> None:
+        nonlocal direction, speed, speed_idx, ctrl_scheme, music_playing
+        cmd = cmd.strip().lower()
+        if cmd in ("up", "forward"):
+            motors.forward(speed);    set_led((0, 255, 0));   direction = "FORWARD"
+        elif cmd in ("down", "backward"):
+            motors.backward(speed);   set_led((255, 0, 0));   direction = "BACKWARD"
+        elif cmd == "left":
+            motors.turn_left(speed);  set_led((0, 0, 255));   direction = "LEFT"
+        elif cmd == "right":
+            motors.turn_right(speed); set_led((255, 255, 0)); direction = "RIGHT"
+        elif cmd == "stop":
+            motors.stop();            set_led((0, 0, 0));     direction = "STOPPED"
+        elif cmd == "photo":
+            take_photo()
+        elif cmd == "video":
+            toggle_video()
+        elif cmd in ("music", "play_music", "start_music"):
+            if not music_playing:
+                music.play_next(); music_playing = True
+        elif cmd in ("stop_music", "pause_music"):
+            music.stop(); music_playing = False
+        elif cmd in ("skip", "next_music"):
+            music.play_next()
+        elif cmd == "speed":
+            speed_idx = (speed_idx + 1) % len(speed_levels)
+            speed = speed_levels[speed_idx]
+
+    # ── Main loop ─────────────────────────────────────────────
     running = True
     while running:
-        screen.blit(bg, (0, 0))
         mouse = pygame.mouse.get_pos()
 
-        # Draw QR code once
-        screen.blit(qr_surface, (10, 10))
+        with _stats_lock:
+            st = _system_stats.copy()
 
-        # Read stats safely from the background thread
-        with stats_lock:
-            stats_copy = system_stats.copy()
+        cpu_pct  = min(st.get("cpu",  0) / 100.0, 1.0)
+        temp_c   = st.get("temp",  0)
+        temp_pct = min(temp_c / 85.0, 1.0)
+        ram_u    = st.get("ram_used",  0)
+        ram_t    = st.get("ram_total", 1)
+        ram_pct  = min(ram_u / max(ram_t, 1), 1.0)
+        latency  = st.get("latency",  "N/A")
+        n_thr    = st.get("threads",  0)
+        disk_r   = st.get("disk_read",  0)
+        disk_w   = st.get("disk_write", 0)
+        boot_t   = st.get("boot_time", "--:--")
 
-        draw_waveform(screen, frame, pygame.Rect(30, 540, 900, 100))
-        draw_system_stats(screen, font, stats_copy)
+        # Camera — capture every 2 frames
+        cam_tick += 1
+        if cam_tick >= 2:
+            cam_tick = 0
+            cam_surf = _cam_to_surface(cam, CAM_W, CAM_H)
 
-        # Draw UI buttons
-        if mode == MODE_MENU:
-            draw_button(screen, font, "🚩 User Control", btns["user_mode"], mouse, frame)
-            draw_button(screen, font, "🚩 Autonomy", btns["auto_mode"], mouse, frame)
-            draw_button(screen, font, "🎥 Cam Avoidance", btns["cam_mode"], mouse, frame)
+        # Real waveform amplitudes when music is playing
+        amplitudes = None
+        if music_playing and analyzer is not None:
+            try:
+                pos = pygame.mixer.music.get_pos() / 1000.0
+                amplitudes = analyzer.get_amplitudes(pos)
+            except Exception:
+                pass
 
-        if mode in (MODE_USER, MODE_AUTO, MODE_CAM_AVOID):
-            draw_button(screen, font, "⏹ Stop Music" if music_playing else "🎵 Play Music", btns["music"], mouse, frame)
-            draw_button(screen, font, "⏭ Skip Song", btns["skip"], mouse, frame)
-            draw_button(screen, font, "⏹ Back", btns["back"], mouse, frame)
+        # ── Render ────────────────────────────────────────────
+        screen.fill(BG)
+        _grid(screen, W, H)
 
-        if mode == MODE_USER:
-            draw_button(screen, font, f"🚀 Speed {speed_idx + 1}", btns["speed"], mouse, frame)
-            draw_button(screen, font, f"🎮 Mode {control_mode}", btns["switch_control"], mouse, frame)
-            draw_button(screen, font, "📸 Photo", btns["photo"], mouse, frame)
-            draw_button(screen, font, "🎥 Video", btns["video"], mouse, frame)
+        screen.blit(cam_surf, (CAM_X, CAM_Y))
 
-        if mode in (MODE_USER, MODE_AUTO):
-            status_text = (f"Mode: {'WASD' if control_mode == 1 else 'QA/WS'} | Speed: {speed:.1f}"
-                           if mode == MODE_USER else "Autonomous Obstacle Avoidance") #Think about MODE_CAM_AVOID
-            status = font.render(status_text, True, (255, 255, 255))
-            screen.blit(status, (30, 610))
+        # Vignette
+        vw = 32
+        for i in range(vw):
+            a = int(200 * (1 - i / vw))
+            s = pygame.Surface((1, CAM_H), pygame.SRCALPHA)
+            s.fill((0, 0, 0, a))
+            screen.blit(s, (CAM_X + i,             CAM_Y))
+            screen.blit(s, (CAM_X + CAM_W - 1 - i, CAM_Y))
 
+        # HUD corner brackets
+        blen, bthk = 24, 2
+        for (cx, cy, sx, sy) in [
+            (CAM_X + 6,         CAM_Y + 6,          1,  1),
+            (CAM_X + CAM_W - 6, CAM_Y + 6,         -1,  1),
+            (CAM_X + 6,         CAM_Y + CAM_H - 6,  1, -1),
+            (CAM_X + CAM_W - 6, CAM_Y + CAM_H - 6, -1, -1),
+        ]:
+            pygame.draw.line(screen, ACCENT, (cx, cy), (cx + sx * blen, cy), bthk)
+            pygame.draw.line(screen, ACCENT, (cx, cy), (cx, cy + sy * blen), bthk)
+
+        # REC blink
+        if video_rec and (frame // 15) % 2 == 0:
+            pygame.draw.circle(screen, RED, (CAM_X + CAM_W - 22, CAM_Y + 14), 5)
+            _txt(screen, fmono_xs, "REC", (CAM_X + CAM_W - 14, CAM_Y + 9), RED)
+
+        # Mode overlay
+        if mode == Mode.AUTONOMOUS:
+            msg      = "— AUTONOMOUS OBSTACLE AVOIDANCE —"
+            ov_color = TEAL
+        elif mode == Mode.LINE:
+            msg      = "— LINE FOLLOWER —"
+            ov_color = BLUE
+        else:
+            msg = None
+
+        if msg:
+            ms = fmono_sm.render(msg, True, ov_color)
+            mx = CAM_X + (CAM_W - ms.get_width()) // 2
+            my = CAM_Y + CAM_H - 28
+            ov = pygame.Surface((ms.get_width() + 20, ms.get_height() + 10), pygame.SRCALPHA)
+            ov.fill((0, 0, 0, 130))
+            screen.blit(ov, (mx - 10, my - 4))
+            screen.blit(ms, (mx, my))
+
+        # Dividers
+        _hline(screen, TOP_H,      0, W)
+        _hline(screen, H - BOT_H,  0, W)
+        _hline(screen, H - STAT_H, 0, W)
+        _vline(screen, L_W,        TOP_H, H - BOT_H)
+        _vline(screen, W - R_W,    TOP_H, H - BOT_H)
+
+        # ── Top bar ───────────────────────────────────────────
+        logo = fmono_lg.render("KIDA", True, ACCENT)
+        screen.blit(logo, (12, (TOP_H - logo.get_height()) // 2))
+
+        for i, (tr, tl) in enumerate(zip(tabs, TAB_LABELS)):
+            _btn(screen, fbody, tl, tr, mouse, active=(mode == i))
+
+        chip_x = W - 14
+        for lbl, val, warn in [
+            ("THR",  str(n_thr),                   False),
+            ("TEMP", f"{temp_c:.0f}C",             temp_c > 65),
+            ("CPU",  f"{st.get('cpu', 0):.0f}%",  False),
+        ]:
+            col = AMBER if warn else PRI
+            vs  = fmono_sm.render(val, True, col)
+            ls  = fmono_xs.render(lbl, True, DIM)
+            chip_x -= vs.get_width() + 4
+            screen.blit(vs, (chip_x, (TOP_H - vs.get_height()) // 2))
+            chip_x -= ls.get_width() + 10
+            screen.blit(ls, (chip_x, (TOP_H - ls.get_height()) // 2))
+            chip_x -= 12
+
+        for i in range(8):
+            dc = led_color if any(c > 10 for c in led_color) else (24, 26, 38)
+            _led_dot(screen, (chip_x - 14 - i * 14, TOP_H // 2), dc, r=4)
+
+        # ── Left panel ────────────────────────────────────────
+        lp_y = TOP_H + 10
+
+        screen.blit(qr_surf, (LP_X, lp_y))
+        _txt(screen, fmono_xs, f"{local_ip}:5000",
+             (LP_X + LP_W // 2, lp_y + 114), AMBER, anchor="midtop")
+        lp_y += 132
+
+        _txt(screen, fmono_xs, "SYSTEM", (LP_X, lp_y), DIM)
+        lp_y += 13
+        for label, val, pct, bc in [
+            ("CPU",  f"{st.get('cpu', 0):.0f}%", cpu_pct,  ACCENT),
+            ("TEMP", f"{temp_c:.0f}C",            temp_pct, AMBER),
+            ("RAM",  f"{ram_u}/{ram_t}M",          ram_pct,  BLUE),
+        ]:
+            _txt(screen, flabel,   label, (LP_X, lp_y), DIM)
+            _txt(screen, fmono_xs, val,   (LP_X + LP_W, lp_y + 1), SEC, anchor="topright")
+            _bar(screen, pygame.Rect(LP_X, lp_y + 12, LP_W, 3), pct, bc)
+            lp_y += 22
+
+        lp_y += 4
+        _txt(screen, fmono_xs, "NETWORK", (LP_X, lp_y), DIM)
+        lp_y += 13
+        for label, val in [
+            ("LATENCY", latency),
+            ("THREADS", str(n_thr)),
+            ("DISK R",  f"{disk_r}MB"),
+            ("DISK W",  f"{disk_w}MB"),
+            ("BOOT",    boot_t),
+        ]:
+            _txt(screen, flabel,   label,    (LP_X, lp_y), DIM)
+            _txt(screen, fmono_xs, str(val), (LP_X + LP_W, lp_y + 1), SEC, anchor="topright")
+            pygame.draw.line(screen, (20, 22, 32), (LP_X, lp_y + 13), (LP_X + LP_W, lp_y + 13))
+            lp_y += 16
+
+        # Music section
+        lp_y += 8
+        _txt(screen, fmono_xs, "MUSIC", (LP_X, lp_y), DIM)
+        lp_y += 13
+
+        track = music.current_track or "No track"
+        tn = fbody.render(str(track)[:26], True, PRI if music_playing else SEC)
+        screen.blit(tn, (LP_X, lp_y))
+        lp_y += 18
+
+        _waveform(screen, frame,
+                  pygame.Rect(LP_X, lp_y, LP_W, 26),
+                  bars=26, playing=music_playing, amplitudes=amplitudes)
+        lp_y += 30
+
+        btn_play = pygame.Rect(LP_X,                        mus_base + 38, (LP_W - 6) // 2, 30)
+        btn_skip = pygame.Rect(LP_X + (LP_W - 6) // 2 + 6, mus_base + 38, (LP_W - 6) // 2, 30)
+        _btn(screen, flabel, "PAUSE" if music_playing else "PLAY", btn_play, mouse,
+             active=music_playing)
+        _btn(screen, flabel, "SKIP", btn_skip, mouse)
+
+        # ── Right panel ───────────────────────────────────────
+        _txt(screen, fmono_xs, "DIRECTIONAL CONTROL", (RP_X, TOP_H + 10), DIM)
+
+        for cmd, r in dpad.items():
+            is_stop = cmd == "stop"
+            _btn(screen,
+                 fmono_sm if is_stop else fdpad,
+                 DPAD_GLYPHS[cmd], r, mouse,
+                 danger=is_stop,
+                 hover_col=ACCENT)
+            if cmd != "stop" and direction.lower() == cmd:
+                pygame.draw.rect(screen, ACCENT, r, width=2, border_radius=6)
+
+        _txt(screen, fmono_xs, "SPEED LEVEL", (RP_X, spd_y - 14), DIM)
+        for i, r in enumerate(spd_dots):
+            _btn(screen, fmono_md, str(i + 1), r, mouse, active=(speed_idx == i))
+
+        _txt(screen, fmono_xs, "CONTROL SCHEME", (RP_X, sch_y - 14), DIM)
+        for i, (r, lbl) in enumerate(zip(sch_btns, ["WASD", "QA/WS"])):
+            _btn(screen, flabel, lbl, r, mouse, active=(ctrl_scheme == i + 1))
+
+        _txt(screen, fmono_xs, "CAPTURE", (RP_X, pv_y - 14), DIM)
+        _btn(screen, flabel, "PHOTO", btn_photo, mouse, hover_col=BLUE)
+        _btn(screen, flabel,
+             "STOP REC" if video_rec else "REC",
+             btn_video, mouse,
+             active=video_rec,
+             hover_col=RED, danger=video_rec)
+
+        # Motor readout
+        mrd_y = H - BOT_H - 76
+        for label, val in [
+            ("DIR",    direction),
+            ("SPEED",  f"{speed:.1f}"),
+            ("SCHEME", "WASD" if ctrl_scheme == 1 else "QA/WS"),
+            ("LED",    f"R{led_color[0]} G{led_color[1]} B{led_color[2]}"),
+        ]:
+            _txt(screen, flabel,   label,    (RP_X, mrd_y), DIM)
+            _txt(screen, fmono_xs, str(val), (RP_X + RP_W, mrd_y), SEC, anchor="topright")
+            pygame.draw.line(screen, (18, 20, 30),
+                             (RP_X, mrd_y + 15), (RP_X + RP_W, mrd_y + 15))
+            mrd_y += 18
+
+        # ── Bottom — waveform + status bar ────────────────────
+        _waveform(screen, frame,
+                  pygame.Rect(0, H - BOT_H, W, WAVE_H),
+                  bars=96, playing=music_playing, amplitudes=amplitudes)
+
+        sb_y = H - STAT_H
+        screen.fill((10, 11, 16), pygame.Rect(0, sb_y, W, STAT_H))
+        _hline(screen, sb_y, 0, W)
+        pygame.draw.circle(screen, GREEN, (14, sb_y + STAT_H // 2), 4)
+
+        sx = 28
+        for lbl, val in [
+            ("FLASK",  ":5000"),
+            ("MODE",   mode.name),
+            ("SCHEME", "WASD" if ctrl_scheme == 1 else "QA/WS"),
+            ("SPEED",  f"{speed:.1f}"),
+            ("FRM",    str(frame)),
+            ("CAM",    "LIVE"),
+        ]:
+            ls = fmono_xs.render(lbl, True, DIM)
+            vs = fmono_xs.render(val, True, SEC)
+            screen.blit(ls, (sx, sb_y + (STAT_H - ls.get_height()) // 2))
+            sx += ls.get_width() + 4
+            screen.blit(vs, (sx, sb_y + (STAT_H - vs.get_height()) // 2))
+            sx += vs.get_width() + 14
+            pygame.draw.line(screen, BORDER, (sx - 6, sb_y + 4), (sx - 6, sb_y + STAT_H - 4))
+
+        vers = fmono_xs.render("KIDA v2.0 · RASPBERRY PI", True, DIM)
+        screen.blit(vers, (W - vers.get_width() - 12,
+                           sb_y + (STAT_H - vers.get_height()) // 2))
+
+        # ── Events ────────────────────────────────────────────
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
 
-            elif event.type == music.SONG_END:
-                print("🎵 Song ended event detected, playing next track.")
+            elif event.type == getattr(music, "SONG_END", -1):
                 music.handle_event(event)
                 music_playing = music.playing
 
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_TAB:
-                    mode = MODE_MENU
-                elif event.key == pygame.K_m and music.playlist:
-                    print("🎵 'M' pressed: playing next song")
-                    music.play_next()
-                    music_playing = True
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+                elif event.key == pygame.K_TAB:
+                    mode = Mode((mode + 1) % len(Mode))
+                elif event.key == pygame.K_m:
+                    music.play_next(); music_playing = True
                 elif event.key == pygame.K_SPACE:
-                    print("⏹ Spacebar pressed: stopping music")
-                    music.stop()
-                    music_playing = False
-                elif mode == MODE_USER:
+                    music.stop();      music_playing = False
+                elif mode == Mode.USER:
                     if event.key == pygame.K_x:
                         speed_idx = (speed_idx + 1) % len(speed_levels)
                         speed = speed_levels[speed_idx]
                     elif event.key == pygame.K_1:
-                        control_mode = 1
+                        ctrl_scheme = 1
                     elif event.key == pygame.K_2:
-                        control_mode = 2
+                        ctrl_scheme = 2
                     elif event.key == pygame.K_c:
                         take_photo()
                     elif event.key == pygame.K_v:
-                        toggle_video_recording()
+                        toggle_video()
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                if mode == MODE_MENU:
-                    if btns["user_mode"].collidepoint(event.pos):
-                        mode = MODE_USER
-                    elif btns["auto_mode"].collidepoint(event.pos):
-                        mode = MODE_AUTO
-                    elif btns["cam_mode"].collidepoint(event.pos):
-                        mode = MODE_CAM_AVOID
-                else:
-                    if btns["music"].collidepoint(event.pos):
-                        if music_playing:
-                            print("⏹ Music button clicked: stopping music")
-                            music.stop()
-                            music_playing = False
-                        else:
-                            print("▶️ Music button clicked: playing next song")
-                            music.play_next()
-                            music_playing = True
-                    elif btns["skip"].collidepoint(event.pos) and music_playing:
-                        music.play_next()
-                    elif btns["back"].collidepoint(event.pos):
-                        mode = MODE_MENU
-                    elif mode == MODE_USER:
-                        if btns["speed"].collidepoint(event.pos):
-                            speed_idx = (speed_idx + 1) % len(speed_levels)
+                for i, tr in enumerate(tabs):
+                    if tr.collidepoint(event.pos):
+                        mode = Mode(i)
+
+                if mode == Mode.USER:
+                    for cmd, r in dpad.items():
+                        if r.collidepoint(event.pos):
+                            if cmd == "forward":
+                                motors.forward(speed);    set_led((0, 255, 0))
+                            elif cmd == "backward":
+                                motors.backward(speed);   set_led((255, 0, 0))
+                            elif cmd == "left":
+                                motors.turn_left(speed);  set_led((0, 0, 255))
+                            elif cmd == "right":
+                                motors.turn_right(speed); set_led((255, 255, 0))
+                            elif cmd == "stop":
+                                motors.stop();            set_led((0, 0, 0))
+                            direction = cmd.upper()
+
+                    for i, r in enumerate(spd_dots):
+                        if r.collidepoint(event.pos):
+                            speed_idx = i
                             speed = speed_levels[speed_idx]
-                        elif btns["switch_control"].collidepoint(event.pos):
-                            control_mode = 2 if control_mode == 1 else 1
-                        elif btns["photo"].collidepoint(event.pos):
-                            take_photo()
-                        elif btns["video"].collidepoint(event.pos):
-                            toggle_video_recording()
 
-        # Process commands from Flask queue
-        while not command_queue.empty():
-            cmd = command_queue.get()
-            print(f"🤖 Processing command from Flask: {cmd}")
+                    for i, r in enumerate(sch_btns):
+                        if r.collidepoint(event.pos):
+                            ctrl_scheme = i + 1
 
-            if cmd in ("up", "forward"):
-                motors.forward(speed)
-                led.set_all_led_color(0, 255, 0)
+                    if btn_photo.collidepoint(event.pos):
+                        take_photo()
+                    if btn_video.collidepoint(event.pos):
+                        toggle_video()
 
-            elif cmd in ("down", "backward"):
-                motors.backward(speed)
-                led.set_all_led_color(255, 0, 0)
-
-            elif cmd == "left":
-                motors.turn_left(speed)
-                led.set_all_led_color(0, 0, 255)
-
-            elif cmd == "right":
-                motors.turn_right(speed)
-                led.set_all_led_color(255, 255, 0)
-
-            elif cmd == "stop":
-                motors.stop()
-                led.set_all_led_color(0, 0, 0)
-
-            elif cmd == "photo":
-                take_photo()
-
-            elif cmd == "video":
-                toggle_video_recording()
-
-            elif cmd in ("music", "play_music", "start_music"):
-                if not music_playing:
+                if btn_play.collidepoint(event.pos):
+                    if music_playing:
+                        music.stop();      music_playing = False
+                    else:
+                        music.play_next(); music_playing = True
+                if btn_skip.collidepoint(event.pos) and music_playing:
                     music.play_next()
-                    music_playing = True
 
-            elif cmd in ("stop_music", "pause_music", "music_stop"):
-                if music_playing:
-                    music.stop()
-                    music_playing = False
+        # ── Flask command queue ───────────────────────────────
+        while not command_queue.empty():
+            _process_command(command_queue.get_nowait())
 
-            elif cmd in ("skip", "skip_music", "next_music"):
-                music.play_next()
-
-            elif cmd == "speed":
-                speed_idx = (speed_idx + 1) % len(speed_levels)
-                speed = speed_levels[speed_idx]
-
-            elif cmd == "mode":
-                control_mode = 2 if control_mode == 1 else 1
-
+        # ── Drive logic ───────────────────────────────────────
+        if mode == Mode.AUTONOMOUS:
+            if avoider is not None:
+                try:
+                    if avoider.check_and_avoid():
+                        set_led((255, 0, 0))
+                except Exception as e:
+                    logger.warning("Avoider error: %s", e)
             else:
-                print(f"⚠️ Unknown command: {cmd}")
+                motors.stop()
 
-        # Control logic based on mode
-        if mode == MODE_AUTO:
-            if obstacle_avoid.check_and_avoid():
-                led.set_all_led_color(255, 0, 0)
-                led.show()
-                pygame.display.flip()
-                continue
+        elif mode == Mode.LINE:
+            if liner is not None:
+                try:
+                    liner.follow_line()
+                except Exception as e:
+                    logger.warning("LineFollower error: %s", e)
+            else:
+                motors.stop()
 
-        elif mode == MODE_USER:
+        elif mode == Mode.USER:
             keys = pygame.key.get_pressed()
-            if control_mode == 1:
+            if ctrl_scheme == 1:
                 if keys[pygame.K_w]:
-                    motors.forward(speed)
-                    led.set_all_led_color(0, 255, 0)
+                    motors.forward(speed);    set_led((0, 255, 0));   direction = "FORWARD"
                 elif keys[pygame.K_s]:
-                    motors.backward(speed)
-                    led.set_all_led_color(255, 0, 0)
+                    motors.backward(speed);   set_led((255, 0, 0));   direction = "BACKWARD"
                 elif keys[pygame.K_a]:
-                    motors.turn_left(speed)
-                    led.set_all_led_color(0, 0, 255)
+                    motors.turn_left(speed);  set_led((0, 0, 255));   direction = "LEFT"
                 elif keys[pygame.K_d]:
-                    motors.turn_right(speed)
-                    led.set_all_led_color(255, 255, 0)
+                    motors.turn_right(speed); set_led((255, 255, 0)); direction = "RIGHT"
                 else:
-                    motors.stop()
-                    led.set_all_led_color(0, 0, 0)
+                    motors.stop();            set_led((0, 0, 0));     direction = "STOPPED"
             else:
-                left, right = motors.control_mode_2(keys, speed)
-                led.set_all_led_color(
-                    *(0, 255, 255) if left and right else
-                    (255, 0, 255) if left else
-                    (255, 165, 0) if right else
-                    (0, 0, 0)
-                )
-        elif mode == MODE_CAM_AVOID:
-            img, scene_description = cam_nav.navigate()
-            led.set_all_led_color(100, 100, 255)
-
-    # Convert image and display
-            cam_surface = cv2image_to_pygame(img)
-            screen.blit(cam_surface, (620, 380))  # Adjust position as needed
-
-    # Draw scene description
-            desc = font.render(scene_description, True, (255, 255, 255))
-            screen.blit(desc, (30, 580))
-
-        if mode == MODE_CAM_AVOID:
-            status = font.render("Camera Obstacle Avoidance", True, (255, 255, 255))
-            screen.blit(status, (30, 610))     #Display the photo and the description from camera_navigation in th Pygame Window      
+                left, right = motors.control_tank(keys, speed)
+                if left and right:  set_led((0, 255, 255))
+                elif left:          set_led((255, 0, 255))
+                elif right:         set_led((255, 165, 0))
+                else:               set_led((0, 0, 0))
 
         if music_playing:
             led.rhythm_wave(frame)
@@ -494,12 +847,25 @@ def main():
         pygame.display.flip()
         clock.tick(30)
 
-    # Cleanup
+    # ── Cleanup ───────────────────────────────────────────────
+    logger.info("Shutting down…")
+    if video_rec:
+        try:
+            cam.stop_encoder()
+        except Exception:
+            pass
+    motors.cleanup()
+    if avoider is not None:
+        avoider.cleanup()
+    if liner is not None:
+        liner.cleanup()
     led.led_close()
-    cam.stop_preview()
-    cam.stop()
-    obstacle_avoid.cleanup()
+    try:
+        cam.stop()
+    except Exception:
+        pass
     pygame.quit()
+
 
 if __name__ == "__main__":
     main()

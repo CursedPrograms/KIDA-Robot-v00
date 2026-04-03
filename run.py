@@ -3,4 +3,4 @@ import sys
 
 print("Switching to ui.py...")
 
-os.execv(sys.executable, [sys.executable, "ui.py"])
+os.execv(sys.executable, [sys.executable, "scripts/ui.py"])
