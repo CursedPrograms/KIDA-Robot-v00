@@ -75,60 +75,12 @@ This document describes the GPIO pin assignments for the KIDA robot.
 ```python
 def __init__(self, left_pins=(24, 23), right_pins=(5, 6)):
 
-📡 SSID: KIDAv00
-🔒 Password: 12345678
-🌐 Access your site at: http://192.168.4.1:5000
-
-sudo apt update
-sudo apt install hostapd dnsmasq -y
-
-sudo systemctl stop hostapd
-sudo systemctl stop dnsmasq
-
-sudo nano /etc/dhcpcd.conf
-
-sudo nano /etc/dhcpcd.conf
-
-sudo nano /etc/hostapd/hostapd.conf
-
-interface=wlan0
-driver=nl80211
-ssid=KIDAv00
-hw_mode=g
-channel=7
-wmm_enabled=0
-macaddr_acl=0
-auth_algs=1
-ignore_broadcast_ssid=0
-
-wpa=2
-wpa_passphrase=12345678
-wpa_key_mgmt=WPA-PSK
-rsn_pairwise=CCMP
-
-sudo nano /etc/default/hostapd
-
-#DAEMON_CONF=""
-
-DAEMON_CONF="/etc/hostapd/hostapd.conf"
-
-sudo mv /etc/dnsmasq.conf /etc/dnsmasq.conf.bak
-
-sudo nano /etc/dnsmasq.conf
-
-interface=wlan0
-dhcp-range=192.168.4.2,192.168.4.50,255.255.255.0,24h
-
-sudo systemctl unmask hostapd
-sudo systemctl enable hostapd
-sudo systemctl enable dnsmasq
-
-
 ## How to Run:
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
+pip install -r requirements.txt
 ```
 
 ### Install Requirements
@@ -140,7 +92,6 @@ pip install -r requirements.txt
 ```
 Or run: 
 - `install_requirements.bat`
-
   
   <br>
 
@@ -149,6 +100,7 @@ Or run:
 Using Python directly:
 
 ```bash
+source venv/bin/activate
 python main.py
 ```
 
@@ -162,6 +114,75 @@ or
 Unix-like systems (Linux/macOS):
 - `.\run.sh`
   <br>  
+
+📡 SSID: KIDAv00
+🔒 Password: 12345678
+🌐 Access your site at: http://192.168.4.1:5000
+
+```bash
+sudo apt update
+sudo apt install hostapd dnsmasq -y
+```
+
+```bash
+sudo systemctl stop hostapd
+sudo systemctl stop dnsmasq
+```
+
+```bash
+sudo nano /etc/dhcpcd.conf
+```
+```bash
+sudo nano /etc/hostapd/hostapd.conf
+```
+
+```bash
+interface=wlan0
+driver=nl80211
+ssid=KIDAv00
+hw_mode=g
+channel=7
+wmm_enabled=0
+macaddr_acl=0
+auth_algs=1
+ignore_broadcast_ssid=0
+```
+
+```bash
+wpa=2
+wpa_passphrase=12345678
+wpa_key_mgmt=WPA-PSK
+rsn_pairwise=CCMP
+```
+```bash
+sudo nano /etc/default/hostapd
+```
+
+
+#DAEMON_CONF=""
+
+```bash
+DAEMON_CONF="/etc/hostapd/hostapd.conf"
+```
+
+```bash
+sudo mv /etc/dnsmasq.conf /etc/dnsmasq.conf.bak
+```
+
+```bash
+sudo nano /etc/dnsmasq.conf
+```
+
+```bash
+interface=wlan0
+dhcp-range=192.168.4.2,192.168.4.50,255.255.255.0,24h
+```
+
+```bash
+sudo systemctl unmask hostapd
+sudo systemctl enable hostapd
+sudo systemctl enable dnsmasq
+```
 
 ## Requirements:
 
@@ -478,8 +499,6 @@ webencodings                 0.5.1
 Werkzeug                     3.1.3
 wheel                        0.46.1
 zipp                         3.21.0
-
-
 ```
 
 <br>
