@@ -22,6 +22,13 @@
 
 # KIDA (v00): Kinetic Interactive Drive Automaton
 
+## Related Projects
+
+- [WHIP-Robot-v00](https://github.com/CursedPrograms/WHIP-Robot-v00)
+- [KIDA-Robot-v01](https://github.com/CursedPrograms/KIDA-Robot-v01)
+- [KIDA-Robot-v00](https://github.com/CursedPrograms/NORA-Robot-v00)
+- [ComCentre](https://github.com/CursedPrograms/ComCentre)
+
 <div align="center">
   <img src="images/bg.jpg" alt="KIDA Robot" width="400"/>
 </div>
