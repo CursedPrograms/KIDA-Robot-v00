@@ -1,42 +1,61 @@
-from pydub import AudioSegment
+import logging
 import numpy as np
+from pydub import AudioSegment
+
+logger = logging.getLogger(__name__)
+
 
 class AudioAnalyzer:
-    def __init__(self, filepath, num_bars=50):
-        self.audio = AudioSegment.from_file(filepath)
+    """
+    Pre-computes per-bar RMS amplitude data from an audio file so the
+    waveform visualiser can query it cheaply at playback time.
+    """
+
+    def __init__(self, filepath: str, num_bars: int = 50):
         self.num_bars = num_bars
-        self.samples = np.array(self.audio.get_array_of_samples())
 
-        # Mono or stereo?
-        if self.audio.channels == 2:
-            self.samples = self.samples.reshape((-1, 2))
-            self.samples = self.samples.mean(axis=1)  # convert to mono
+        audio = AudioSegment.from_file(filepath)
+        samples = np.array(audio.get_array_of_samples(), dtype=np.float32)
 
-        self.sample_rate = self.audio.frame_rate
-        self.duration = len(self.audio) / 1000.0  # duration in seconds
+        # Mix stereo down to mono
+        if audio.channels == 2:
+            samples = samples.reshape(-1, 2).mean(axis=1)
 
-        # Normalize samples to [-1,1]
-        self.samples = self.samples / np.max(np.abs(self.samples))
+        self.sample_rate: int   = audio.frame_rate
+        self.duration:    float = len(audio) / 1000.0  # seconds
 
-        # Precompute chunk size for bars
-        self.chunk_size = len(self.samples) // self.num_bars
+        # Normalise to [-1, 1]
+        peak = np.max(np.abs(samples))
+        if peak > 0:
+            samples /= peak
+        self._samples = samples
 
-    def get_amplitudes(self, current_time):
+        # Chunk size for a single bar across the whole file
+        self._chunk = max(1, len(samples) // num_bars)
+
+        logger.info(
+            "AudioAnalyzer: %s | %.1fs | %d Hz | %d bars",
+            filepath, self.duration, self.sample_rate, num_bars,
+        )
+
+    # ── Public API ────────────────────────────────────────────
+
+    def get_amplitudes(self, current_time: float) -> list[float]:
         """
-        Given current playback time in seconds, returns a list of amplitudes (0 to 1)
-        for each bar of the waveform visualizer.
+        Return a list of `num_bars` RMS amplitudes (0.0–1.0) centred on
+        `current_time`. Falls back to start-of-file if out of range.
         """
-        start_sample = int(current_time * self.sample_rate)
-        amplitudes = []
+        start = int(current_time * self.sample_rate)
+        needed = self._chunk * self.num_bars
 
-        # Avoid overflow
-        if start_sample + self.chunk_size * self.num_bars > len(self.samples):
-            # Loop back to start or clip
-            start_sample = 0
+        # Wrap or clamp to avoid overflow
+        if start + needed > len(self._samples):
+            start = 0
 
+        amps = []
         for i in range(self.num_bars):
-            chunk = self.samples[start_sample + i * self.chunk_size : start_sample + (i+1) * self.chunk_size]
-            amp = np.abs(chunk).mean()
-            amplitudes.append(amp)
+            chunk = self._samples[start + i * self._chunk : start + (i + 1) * self._chunk]
+            rms   = float(np.sqrt(np.mean(chunk ** 2))) if len(chunk) else 0.0
+            amps.append(min(rms, 1.0))
 
-        return amplitudes
+        return amps

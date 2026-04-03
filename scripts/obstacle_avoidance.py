@@ -1,145 +1,147 @@
-from gpiozero import DistanceSensor
 import time
+import logging
+from gpiozero import DistanceSensor
+
+logger = logging.getLogger(__name__)
+
 
 class ObstacleAvoidance:
-    def __init__(self, trigger_pin=27, echo_pin=22, motors=None, threshold=0.5):
-        # Faster response (no smoothing delay)
+    """
+    Ultrasonic obstacle avoidance with graduated speed, alternating turns,
+    and a stuck-detection system that commits to one direction when the robot
+    is bouncing between obstacles.
+    """
+
+    def __init__(
+        self,
+        trigger_pin: int = 27,
+        echo_pin: int = 22,
+        motors=None,
+        threshold: float = 0.5,
+    ):
         self.sensor = DistanceSensor(
             echo=echo_pin,
             trigger=trigger_pin,
             max_distance=2.0,
-            queue_len=1
+            queue_len=1,          # fastest possible response
         )
-        self.motors = motors
+        self.motors    = motors
         self.threshold = threshold
-        self.turn_left_next = True
-        
-        # More realistic speeds for a Pi 3 robot
+
         self.min_speed = 0.3
         self.max_speed = 0.6
-        
+
+        # Alternating turn direction
+        self._turn_left_next = True
+
         # Stuck detection
-        self.obstacle_count = 0
-        self.last_obstacle_time = 0
-        self.stuck_threshold = 3  # Number of obstacles in quick succession
-        self.stuck_time_window = 2.0  # Within 2 seconds
-        self.committed_direction = None  # Will be 'left' or 'right'
-        self.commitment_timeout = 5.0  # Stay committed for 5 seconds
-        self.commitment_start_time = 0
-    
-    def get_distance(self):
+        self._obstacle_count      = 0
+        self._last_obstacle_time  = 0.0
+        self._stuck_threshold     = 3      # hits within the time window
+        self._stuck_window        = 2.0    # seconds
+        self._committed_dir: str | None = None
+        self._commitment_start    = 0.0
+        self._commitment_timeout  = 5.0    # seconds before re-evaluating
+
+        logger.info(
+            "ObstacleAvoidance ready — trigger=%d echo=%d threshold=%.2fm",
+            trigger_pin, echo_pin, threshold,
+        )
+
+    # ── Public API ────────────────────────────────────────────
+
+    def get_distance(self) -> float | None:
         try:
             return self.sensor.distance
-        except Exception:
+        except Exception as e:
+            logger.warning("Distance read error: %s", e)
             return None
-    
-    def _map_speed(self, distance):
-        if distance >= self.threshold:
-            return self.max_speed
-        if distance <= 0:
-            return self.min_speed
-        ratio = distance / self.threshold
-        speed = self.min_speed + (self.max_speed - self.min_speed) * ratio
-        return max(self.min_speed, min(self.max_speed, speed))
-    
-    def _detect_stuck(self):
-        """Check if robot is repeatedly hitting obstacles (stuck pattern)"""
-        current_time = time.time()
-        
-        # Check if we're still in the time window
-        if current_time - self.last_obstacle_time < self.stuck_time_window:
-            self.obstacle_count += 1
-        else:
-            # Reset counter if too much time has passed
-            self.obstacle_count = 1
-        
-        self.last_obstacle_time = current_time
-        
-        # If we hit stuck threshold, commit to a direction
-        if self.obstacle_count >= self.stuck_threshold:
-            if self.committed_direction is None:
-                # Choose direction based on current preference
-                self.committed_direction = 'left' if self.turn_left_next else 'right'
-                self.commitment_start_time = current_time
-                print(f"🔄 STUCK DETECTED! Committing to turn {self.committed_direction.upper()}")
-            return True
-        return False
-    
-    def _should_stay_committed(self):
-        """Check if we should still follow committed direction"""
-        if self.committed_direction is None:
-            return False
-        
-        # Release commitment after timeout
-        if time.time() - self.commitment_start_time > self.commitment_timeout:
-            print(f"✅ Commitment timeout - resuming normal operation")
-            self.committed_direction = None
-            self.obstacle_count = 0
-            return False
-        
-        return True
-    
-    def check_and_avoid(self):
+
+    def check_and_avoid(self) -> bool:
+        """
+        Call each frame. Returns True if an obstacle was handled
+        (caller should skip normal drive logic).
+        """
         if self.motors is None:
             return False
-        
+
         distance = self.get_distance()
         if distance is None:
             return False
-        
-        # 🚨 OBSTACLE DETECTED
+
         if distance < self.threshold:
-            # Check if we're stuck
-            is_stuck = self._detect_stuck()
-            
-            self.motors.stop()
-            time.sleep(0.05)
-            
-            # Reverse briefly
-            self.motors.backward(self.min_speed)
-            start_time = time.time()
-            while time.time() - start_time < 0.3:
-                pass
-            self.motors.stop()
-            time.sleep(0.05)
-            
-            # Decide turn direction
-            if self._should_stay_committed():
-                # Stuck mode: always turn the same way
-                turn_direction = self.committed_direction
-                # Longer turn when stuck
-                turn_duration = 0.7
-            else:
-                # Normal mode: alternate
-                turn_direction = 'left' if self.turn_left_next else 'right'
-                turn_duration = 0.55
-                self.turn_left_next = not self.turn_left_next
-            
-            # Execute turn
-            if turn_direction == 'left':
-                self.motors.turn_left(self.min_speed)
-            else:
-                self.motors.turn_right(self.min_speed)
-            
-            start_time = time.time()
-            while time.time() - start_time < turn_duration:
-                pass
-            
-            self.motors.stop()
+            self._handle_obstacle()
             return True
-        
-        # ✅ PATH CLEAR
-        else:
-            # Reset stuck detection if we have clear path
-            if distance > self.threshold * 1.5:  # Good clearance
-                if self.obstacle_count > 0:
-                    self.obstacle_count = max(0, self.obstacle_count - 1)
-            
-            speed = self._map_speed(distance)
-            self.motors.forward(speed)
-            return False
-    
-    def cleanup(self):
+
+        # Clear path — decay stuck counter and drive at graduated speed
+        if distance > self.threshold * 1.5:
+            self._obstacle_count = max(0, self._obstacle_count - 1)
+
+        self.motors.forward(self._graduated_speed(distance))
+        return False
+
+    def cleanup(self) -> None:
         if self.motors:
             self.motors.stop()
         self.sensor.close()
+        logger.info("ObstacleAvoidance cleaned up")
+
+    # ── Internal ──────────────────────────────────────────────
+
+    def _handle_obstacle(self) -> None:
+        self._update_stuck()
+
+        self.motors.stop()
+        time.sleep(0.05)
+
+        # Brief reverse
+        self.motors.backward(self.min_speed)
+        time.sleep(0.3)
+        self.motors.stop()
+        time.sleep(0.05)
+
+        # Choose direction and duration
+        if self._is_committed():
+            turn_dir      = self._committed_dir
+            turn_duration = 0.7
+            logger.debug("Stuck mode — committing %s", turn_dir)
+        else:
+            turn_dir      = "left" if self._turn_left_next else "right"
+            turn_duration = 0.55
+            self._turn_left_next = not self._turn_left_next
+
+        if turn_dir == "left":
+            self.motors.turn_left(self.min_speed)
+        else:
+            self.motors.turn_right(self.min_speed)
+
+        time.sleep(turn_duration)
+        self.motors.stop()
+
+    def _update_stuck(self) -> None:
+        now = time.time()
+        if now - self._last_obstacle_time < self._stuck_window:
+            self._obstacle_count += 1
+        else:
+            self._obstacle_count = 1
+        self._last_obstacle_time = now
+
+        if self._obstacle_count >= self._stuck_threshold and self._committed_dir is None:
+            self._committed_dir   = "left" if self._turn_left_next else "right"
+            self._commitment_start = now
+            logger.info("Stuck detected — committing to %s", self._committed_dir)
+
+    def _is_committed(self) -> bool:
+        if self._committed_dir is None:
+            return False
+        if time.time() - self._commitment_start > self._commitment_timeout:
+            logger.info("Commitment timeout — resuming normal avoidance")
+            self._committed_dir  = None
+            self._obstacle_count = 0
+            return False
+        return True
+
+    def _graduated_speed(self, distance: float) -> float:
+        """Scale speed linearly between min and max based on proximity."""
+        ratio = min(distance / self.threshold, 1.0)
+        return self.min_speed + (self.max_speed - self.min_speed) * ratio

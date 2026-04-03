@@ -1,132 +1,126 @@
-from gpiozero import LineSensor
 import time
+import logging
+from gpiozero import LineSensor
 
-# Define pin numbers
-IR01 = 16
-IR02 = 26
-IR03 = 21
+logger = logging.getLogger(__name__)
 
-# Setup
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(IR01, GPIO.IN)
-GPIO.setup(IR02, GPIO.IN)
-GPIO.setup(IR03, GPIO.IN)
-
-print("Starting Line Sensor Test (Ctrl+C to exit)")
-
-try:
-    while True:
-        left = GPIO.input(IR01)
-        center = GPIO.input(IR02)
-        right = GPIO.input(IR03)
-
-        print(f"Left: {'LINE' if not left else 'NO LINE'} | "
-              f"Center: {'LINE' if not center else 'NO LINE'} | "
-              f"Right: {'LINE' if not right else 'NO LINE'}")
-
-        time.sleep(0.2)
-
-except KeyboardInterrupt:
-    print("\nExiting Line Sensor Test")
-
-finally:
-    GPIO.cleanup()
 
 class LineFollower:
-    def __init__(self, left_pin=17, right_pin=27, motors=None):
+    """
+    Two-sensor line follower with recovery mode.
+
+    Sensor logic (active-low IR — line detected = sensor value 1):
+      left=1, right=1  → on track  → drive forward
+      left=0, right=1  → drifted right → correct left
+      left=1, right=0  → drifted left  → correct right
+      left=0, right=0  → line lost     → enter recovery
+    """
+
+    def __init__(self, left_pin: int = 17, right_pin: int = 27, motors=None):
         self.left_sensor  = LineSensor(left_pin)
         self.right_sensor = LineSensor(right_pin)
         self.motors = motors
 
-        # Speed tuning
-        self.base_speed = 0.45
-        self.turn_speed = 0.35
-        self.max_speed  = 0.6
+        self.base_speed  = 0.45
+        self.turn_speed  = 0.35
+        self.max_speed   = 0.60
 
-        # State
-        self.last_direction = "forward"
-        self.lost_count = 0
+        self._last_direction    = "forward"
+        self._lost_count        = 0
+        self._lost_threshold    = 5        # frames before recovery kicks in
 
-        # Recovery system (like your obstacle avoider)
-        self.recovery_mode = False
-        self.recovery_direction = None
-        self.recovery_start = 0
-        self.recovery_time = 1.5
+        self._recovery_mode      = False
+        self._recovery_direction: str | None = None
+        self._recovery_start     = 0.0
+        self._recovery_timeout   = 1.5     # seconds
 
-    def read_sensors(self):
+        logger.info(
+            "LineFollower ready — left_pin=%d right_pin=%d", left_pin, right_pin
+        )
+
+    # ── Public API ────────────────────────────────────────────
+
+    def read_sensors(self) -> tuple[int, int]:
         return self.left_sensor.value, self.right_sensor.value
 
-    def _start_recovery(self):
-        self.recovery_mode = True
-        self.recovery_start = time.time()
-
-        # Commit to last known direction
-        if self.last_direction == "left":
-            self.recovery_direction = "left"
-        elif self.last_direction == "right":
-            self.recovery_direction = "right"
-        else:
-            self.recovery_direction = "left"
-
-        print(f"🔄 LINE LOST — recovering {self.recovery_direction.upper()}")
-
-    def _handle_recovery(self):
-        if time.time() - self.recovery_start > self.recovery_time:
-            self.recovery_mode = False
-            self.lost_count = 0
-            print("✅ Line reacquire timeout")
-            return False
-
-        if self.recovery_direction == "left":
-            self.motors.turn_left(self.turn_speed)
-        else:
-            self.motors.turn_right(self.turn_speed)
-
-        return True
-
-    def follow_line(self):
+    def follow_line(self) -> bool:
+        """
+        Call each frame. Returns True if correcting / recovering
+        (caller can use this to indicate non-straight travel).
+        """
         if self.motors is None:
             return False
 
+        if self._recovery_mode:
+            return self._do_recovery()
+
         left, right = self.read_sensors()
 
-        # 🧠 RECOVERY MODE
-        if self.recovery_mode:
-            return self._handle_recovery()
-
-        # 🟢 ON TRACK
         if left and right:
+            # On track
             self.motors.forward(self.max_speed)
-            self.last_direction = "forward"
-            self.lost_count = 0
+            self._last_direction = "forward"
+            self._lost_count     = 0
             return False
 
-        # ↩️ DRIFT RIGHT → correct LEFT
         elif not left and right:
+            # Drifted right → steer left
             self.motors.turn_left(self.turn_speed)
-            self.last_direction = "left"
-            self.lost_count = 0
+            self._last_direction = "left"
+            self._lost_count     = 0
             return True
 
-        # ↪️ DRIFT LEFT → correct RIGHT
         elif left and not right:
+            # Drifted left → steer right
             self.motors.turn_right(self.turn_speed)
-            self.last_direction = "right"
-            self.lost_count = 0
+            self._last_direction = "right"
+            self._lost_count     = 0
             return True
 
-        # ❌ LINE LOST
         else:
-            self.lost_count += 1
-
-            if self.lost_count > 5:
-                self._start_recovery()
-
+            # Both sensors dark — line lost
+            self._lost_count += 1
             self.motors.stop()
+            if self._lost_count > self._lost_threshold:
+                self._start_recovery()
             return True
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         if self.motors:
             self.motors.stop()
         self.left_sensor.close()
         self.right_sensor.close()
+        logger.info("LineFollower cleaned up")
+
+    # ── Internal ──────────────────────────────────────────────
+
+    def _start_recovery(self) -> None:
+        self._recovery_mode      = True
+        self._recovery_start     = time.time()
+        # Spin toward the last known direction
+        self._recovery_direction = (
+            self._last_direction if self._last_direction in ("left", "right") else "left"
+        )
+        logger.info("Line lost — recovering %s", self._recovery_direction)
+
+    def _do_recovery(self) -> bool:
+        if time.time() - self._recovery_start > self._recovery_timeout:
+            # Give up and reset
+            self._recovery_mode = False
+            self._lost_count    = 0
+            logger.info("Recovery timeout — resuming normal follow")
+            return False
+
+        # Re-check sensors — exit recovery if line reacquired
+        left, right = self.read_sensors()
+        if left or right:
+            self._recovery_mode = False
+            self._lost_count    = 0
+            logger.info("Line reacquired during recovery")
+            return False
+
+        if self._recovery_direction == "left":
+            self.motors.turn_left(self.turn_speed)
+        else:
+            self.motors.turn_right(self.turn_speed)
+        return True
