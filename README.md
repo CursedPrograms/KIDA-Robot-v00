@@ -22,6 +22,10 @@
 
 # KIDA (v00): Kinetic Interactive Drive Automaton
 
+<div align="center">
+  <img src="images/bg.jpg" alt="KIDA Robot" width="400"/>
+</div>
+
 - Pi 3
 - Freenove Robotics Hat
 - Ultrasonic Sensor
