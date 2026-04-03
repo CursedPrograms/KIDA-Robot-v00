@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>KIDA Web Controller</title>
+  <style>
+    body {
+      background-color: #121212;
+      font-family: 'Courier New', monospace;
+      color: #fff;
+      text-align: center;
+      padding: 20px;
+    }
+    h1 {
+      margin-bottom: 10px;
+    }
+    .controller {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 30px;
+    }
+    .dpad {
+      display: grid;
+      grid-template-columns: 60px 60px 60px;
+      grid-template-rows: 60px 60px 60px;
+      gap: 5px;
+      margin-right: 100px;
+    }
+    .dpad button, .actions button, .toprow button, .status, .stats {
+      background-color: #d62828;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 18px;
+      padding: 10px;
+      cursor: pointer;
+      box-shadow: 0 0 5px #000;
+    }
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .actions-row {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+    }
+    .toprow {
+      margin-top: 30px;
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+    }
+    .stats {
+      margin-top: 30px;
+      background-color: #333;
+      padding: 10px;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>KIDA Web Controller</h1>
+
+  <div class="toprow">
+    <button onclick="send('user_mode')">User Mode</button>
+    <button onclick="send('auto_mode')">Autonomy</button>
+    <button onclick="send('speed')">Speed 🔁</button>
+    <button onclick="send('switch_control')">Switch Control</button>
+    <button onclick="send('back')">Back</button>
+  </div>
+
+  <div class="controller">
+    <div class="dpad">
+      <div></div>
+      <button onclick="send('forward')">⬆️</button>
+      <div></div>
+      <button onclick="send('left')">⬅️</button>
+      <div></div>
+      <button onclick="send('right')">➡️</button>
+      <div></div>
+      <button onclick="send('backward')">⬇️</button>
+      <div></div>
+    </div>
+
+    <div class="actions">
+      <div class="actions-row">
+        <button onclick="send('play_music')">🎵 Play</button>
+        <button onclick="send('stop_music')">⏹ Stop</button>
+        <button onclick="send('skip_music')">⏭ Skip</button>
+      </div>
+      <div class="actions-row">
+        <button onclick="send('photo')">📸 Photo</button>
+        <button onclick="send('video')">🎥 Video</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div id="stats">Loading system stats...</div>
+  </div>
+
+  <script>
+    function send(command) {
+      fetch('/control/send/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({command})
+      });
+    }
+
+    async function fetchStats() {
+      const res = await fetch('/control/stats/');
+      const data = await res.json();
+      document.getElementById('stats').innerHTML = data.stats.map(s => `<div>${s}</div>`).join('');
+    }
+
+    setInterval(fetchStats, 2000);
+    fetchStats();
+  </script>
+</body>
+</html>

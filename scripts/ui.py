@@ -21,13 +21,13 @@ from PIL import Image
 from picamera2 import Picamera2
 from flask import Flask, jsonify, request
 
-from scripts.mode_control      import Mode
-from scripts.music_player      import MusicPlayer
-from scripts.motor_control     import MotorController
-from scripts.obstacle_avoidance import ObstacleAvoidance
-from scripts.line_follower     import LineFollower
-from scripts.led_control       import SPI_WS2812_LEDStrip
-from scripts.audio_analysis    import AudioAnalyzer
+from mode_control      import Mode
+from music_player      import MusicPlayer
+from motor_control     import MotorController
+from obstacle_avoidance import ObstacleAvoidance
+from line_follower     import LineFollower
+from led_control       import SPI_WS2812_LEDStrip
+from audio_analysis    import AudioAnalyzer
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
