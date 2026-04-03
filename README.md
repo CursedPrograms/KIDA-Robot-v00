@@ -120,8 +120,18 @@ Unix-like systems (Linux/macOS):
 ## Requirements:
 
 ```bash
-
-
+pygame
+numpy
+psutil
+pydub
+gpiozero
+av
+python-prctl
+Flask
+Pillow
+qrcode
+spidev
+tensorflow-aarch64
 
 ```
 
