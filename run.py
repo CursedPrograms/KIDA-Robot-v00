@@ -297,8 +297,8 @@ def main():
     qr_surf  = make_qr_surface(f"http://{local_ip}:5000", size=110)
 
     # ── Directories ───────────────────────────────────────────
-    photos_dir = "/home/nova/Desktop/kida/photos"
-    videos_dir = "/home/nova/Desktop/kida/videos"
+    photos_dir = "/home/nova/Desktop/kida/photos" #refer to settings.json
+    videos_dir = "/home/nova/Desktop/kida/videos" #refer to settings.json
     os.makedirs(photos_dir, exist_ok=True)
     os.makedirs(videos_dir, exist_ok=True)
 
