@@ -141,7 +141,7 @@ Unix-like systems (Linux/macOS):
 ### Network Setup
 
 <div align="center">
-  <img src="images/screenshot.png" alt="KIDA Robot" width="400"/>
+  <img src="images/screenshot.png" alt="KIDA Web Control" width="800"/>
 </div>
 
 - 📡 SSID: KIDAv00
