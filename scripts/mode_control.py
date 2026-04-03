@@ -1,16 +1,19 @@
-from enum import Enum, auto
+from mode_control import ControlMode
 
-class ControlMode(Enum):
-    USER = auto()
-    AUTONOMOUS = auto()
-    LINE_FOLLOWER = auto()
+# State
+current_mode = ControlMode.USER  # default
 
-# Example usage
-if __name__ == "__main__":
-    current_mode = ControlMode.USER
+# Inside your main loop
+if current_mode == ControlMode.USER:
+    # Control via D-pad / web commands
+    # Example: motors.forward(speed) when "forward" command received
+    pass
 
-    print(f"Current mode: {current_mode.name}")
+elif current_mode == ControlMode.AUTONOMOUS:
+    # Use obstacle avoidance
+    avoider.check_and_avoid()
 
-    # Switching modes
-    current_mode = ControlMode.LINE_FOLLOWER
-    print(f"Switched to mode: {current_mode.name}")
+elif current_mode == ControlMode.LINE_FOLLOWER:
+    # Example: call a LineFollower class / function
+    # line_follower.follow_line()
+    pass

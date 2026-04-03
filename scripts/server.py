@@ -32,6 +32,16 @@ def status():
         'message': 'All systems go!'
     })
 
+@app.route('/mode', methods=['POST'])
+def set_mode():
+    global current_mode
+    mode_str = request.get_json().get('mode', '').upper()
+    try:
+        current_mode = ControlMode[mode_str]
+        return jsonify({'status': 'ok', 'mode': current_mode.name})
+    except KeyError:
+        return jsonify({'status': 'error', 'message': 'Invalid mode'}), 400
+
 @app.route('/command', methods=['POST'])
 def receive_command():
     try:
