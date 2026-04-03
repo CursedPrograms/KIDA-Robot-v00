@@ -29,6 +29,54 @@
 - Line Follower
 - 5v DC Motor
 
+📡 SSID: KIDAv00
+🔒 Password: 12345678
+🌐 Access your site at: http://192.168.4.1:5000
+
+sudo apt update
+sudo apt install hostapd dnsmasq -y
+
+sudo systemctl stop hostapd
+sudo systemctl stop dnsmasq
+
+sudo nano /etc/dhcpcd.conf
+
+sudo nano /etc/dhcpcd.conf
+
+sudo nano /etc/hostapd/hostapd.conf
+
+interface=wlan0
+driver=nl80211
+ssid=KIDAv00
+hw_mode=g
+channel=7
+wmm_enabled=0
+macaddr_acl=0
+auth_algs=1
+ignore_broadcast_ssid=0
+
+wpa=2
+wpa_passphrase=12345678
+wpa_key_mgmt=WPA-PSK
+rsn_pairwise=CCMP
+
+sudo nano /etc/default/hostapd
+
+#DAEMON_CONF=""
+
+DAEMON_CONF="/etc/hostapd/hostapd.conf"
+
+sudo mv /etc/dnsmasq.conf /etc/dnsmasq.conf.bak
+
+sudo nano /etc/dnsmasq.conf
+
+interface=wlan0
+dhcp-range=192.168.4.2,192.168.4.50,255.255.255.0,24h
+
+sudo systemctl unmask hostapd
+sudo systemctl enable hostapd
+sudo systemctl enable dnsmasq
+
 
 ## How to Run:
 
