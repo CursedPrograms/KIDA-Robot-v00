@@ -1,45 +1,45 @@
 import os
 import time
-import pygame
-import numpy
-import psutil
-import socket
+import math
 import queue
+import socket
 import threading
-import qrcode
-from PIL import Image
 import subprocess
 import datetime
-import math
+
+import pygame
+import numpy as np
+import psutil
+import qrcode
+from PIL import Image
+from picamera2 import Picamera2
+from flask import Flask, render_template, jsonify, request
 
 from music_player import MusicPlayer
 from motor_control import MotorController
 from obstacle_avoidance import ObstacleAvoidance
 from led_control import SPI_WS2812_LEDStrip
-from picamera2 import Picamera2
 
-from flask import Flask, render_template, jsonify, request
-
-# ─────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
 #  PALETTE
-# ─────────────────────────────────────────────
-BG          = (10,  11,  15)
-PANEL_BG    = (13,  14,  24)
-BORDER      = (30,  33,  48)
-ACCENT      = (255, 30,  100)   # hot pink
-ACCENT_DIM  = (180, 20,  70)
-GREEN       = (29,  158, 117)
-BLUE        = (55,  138, 221)
-AMBER       = (255, 144, 32)
-RED         = (226, 75,  74)
-TEXT_PRI    = (226, 226, 221)
-TEXT_SEC    = (130, 130, 120)
-TEXT_DIM    = (60,  62,  72)
+# ══════════════════════════════════════════════════════════════
+BG      = (8,   9,  13)
+PANEL   = (12,  13,  20)
+BORDER  = (28,  30,  44)
+ACCENT  = (255,  30, 100)
+GREEN   = ( 29, 158, 117)
+BLUE    = ( 55, 138, 221)
+AMBER   = (255, 144,  32)
+RED     = (226,  75,  74)
+TEAL    = ( 20, 180, 160)
+PRI     = (220, 220, 215)
+SEC     = (120, 122, 115)
+DIM     = ( 52,  54,  64)
 
-# ─────────────────────────────────────────────
-#  FLASK
-# ─────────────────────────────────────────────
-app = Flask(__name__, static_folder='static', template_folder='templates')
+# ══════════════════════════════════════════════════════════════
+#  FLASK SERVER
+# ══════════════════════════════════════════════════════════════
+app           = Flask(__name__, static_folder='static', template_folder='templates')
 command_queue = queue.Queue()
 
 @app.route('/')
@@ -48,36 +48,34 @@ def home():
 
 @app.route('/status')
 def status():
-    return jsonify({'status': 'online', 'robot': 'KIDA', 'message': 'All systems go!'})
+    return jsonify({'status': 'online', 'robot': 'KIDA'})
 
 @app.route('/command', methods=['POST'])
 def receive_command():
-    data = request.get_json()
-    command = data.get('command')
-    print(f"📡 Received command: {command}")
-    command_queue.put(command)
-    return jsonify({'received': command, 'status': 'queued'})
+    cmd = request.get_json().get('command')
+    command_queue.put(cmd)
+    return jsonify({'received': cmd, 'status': 'queued'})
 
 @app.route('/control/send/', methods=['POST'])
 def control_send():
-    data = request.get_json()
-    command = data.get('command')
-    print(f"📡 Received command (control/send): {command}")
-    command_queue.put(command)
-    return jsonify({'received': command, 'status': 'executed'})
+    cmd = request.get_json().get('command')
+    command_queue.put(cmd)
+    return jsonify({'received': cmd, 'status': 'executed'})
 
 @app.route('/control/stats/', methods=['GET'])
 def control_stats():
     with stats_lock:
-        stats_copy = system_stats.copy()
-    return jsonify({'stats': stats_copy})
+        return jsonify({'stats': system_stats.copy()})
 
-def run_flask_server():
-    app.run(host='0.0.0.0', port=5000, debug=False)
+def run_flask():
+    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
 
-# ─────────────────────────────────────────────
-#  HELPERS
-# ─────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+#  SYSTEM STATS (background thread)
+# ══════════════════════════════════════════════════════════════
+system_stats = {}
+stats_lock   = threading.Lock()
+
 def get_local_ip():
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -85,626 +83,637 @@ def get_local_ip():
         ip = s.getsockname()[0]
         s.close()
         return ip
-    except:
+    except Exception:
         return "N/A"
 
-def get_system_stats():
-    try:
-        cpu_usage = psutil.cpu_percent()
-        with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
-            cpu_temp = int(f.read()) / 1000.0
-        mem = psutil.virtual_memory()
-        ram_used  = mem.used  // (1024 * 1024)
-        ram_total = mem.total // (1024 * 1024)
-        ip_address = get_local_ip()
-        disk_io    = psutil.disk_io_counters()
-        boot_time  = datetime.datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M")
-        threads    = threading.active_count()
-        try:
-            ping = subprocess.check_output(["ping", "-c", "1", "8.8.8.8"], timeout=1).decode()
-            latency_line = [line for line in ping.split("\n") if "time=" in line]
-            latency = latency_line[0].split("time=")[1].split(" ")[0] + "ms" if latency_line else "N/A"
-        except:
-            latency = "N/A"
-        return {
-            "cpu": cpu_usage, "temp": cpu_temp,
-            "ram_used": ram_used, "ram_total": ram_total,
-            "ip": ip_address,
-            "disk_read_mb":  round(disk_io.read_bytes  / 1024 / 1024, 1),
-            "disk_write_mb": round(disk_io.write_bytes / 1024 / 1024, 1),
-            "boot_time": boot_time, "latency": latency, "threads": threads,
-        }
-    except Exception as e:
-        return {"error": str(e)}
-
-system_stats = {}
-stats_lock   = threading.Lock()
-
-def stats_updater():
+def _stats_worker():
     global system_stats
     while True:
-        new_stats = get_system_stats()
+        try:
+            cpu  = psutil.cpu_percent()
+            with open("/sys/class/thermal/thermal_zone0/temp") as f:
+                temp = int(f.read()) / 1000.0
+            mem  = psutil.virtual_memory()
+            dio  = psutil.disk_io_counters()
+            try:
+                ping = subprocess.check_output(
+                    ["ping", "-c", "1", "8.8.8.8"], timeout=1).decode()
+                lines = [l for l in ping.split("\n") if "time=" in l]
+                lat = lines[0].split("time=")[1].split(" ")[0] + "ms" if lines else "N/A"
+            except Exception:
+                lat = "N/A"
+            s = {
+                "cpu":        cpu,
+                "temp":       temp,
+                "ram_used":   mem.used  // (1024 * 1024),
+                "ram_total":  mem.total // (1024 * 1024),
+                "ip":         get_local_ip(),
+                "disk_read":  round(dio.read_bytes  / 1024 / 1024, 1),
+                "disk_write": round(dio.write_bytes / 1024 / 1024, 1),
+                "boot_time":  datetime.datetime.fromtimestamp(
+                                  psutil.boot_time()).strftime("%H:%M %d/%m"),
+                "latency":    lat,
+                "threads":    threading.active_count(),
+            }
+        except Exception as e:
+            s = {"error": str(e)}
         with stats_lock:
-            system_stats = new_stats
+            system_stats = s
         time.sleep(1)
 
-# ─────────────────────────────────────────────
-#  QR CODE → PYGAME SURFACE
-# ─────────────────────────────────────────────
-def qr_to_pygame_surface(data, size=100):
+# ══════════════════════════════════════════════════════════════
+#  QR CODE HELPER
+# ══════════════════════════════════════════════════════════════
+def make_qr_surface(url: str, size: int = 110) -> pygame.Surface:
     qr = qrcode.QRCode(version=1,
                        error_correction=qrcode.constants.ERROR_CORRECT_L,
-                       box_size=10, border=4)
-    qr.add_data(data)
+                       box_size=10, border=3)
+    qr.add_data(url)
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
     img = img.resize((size, size), Image.LANCZOS)
     return pygame.image.fromstring(img.tobytes(), img.size, "RGB")
 
-# ─────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+#  CAMERA FRAME → PYGAME SURFACE
+# ══════════════════════════════════════════════════════════════
+def cam_frame_to_surface(cam: Picamera2,
+                          target_w: int, target_h: int) -> pygame.Surface:
+    try:
+        frame = cam.capture_array()
+        if frame.shape[2] == 4:
+            frame = frame[:, :, :3]
+        pil = Image.fromarray(frame, "RGB")
+        pil = pil.resize((target_w, target_h), Image.BILINEAR)
+        return pygame.image.fromstring(pil.tobytes(), pil.size, "RGB")
+    except Exception:
+        s = pygame.Surface((target_w, target_h))
+        s.fill((8, 10, 16))
+        return s
+
+# ══════════════════════════════════════════════════════════════
 #  DRAW HELPERS
-# ─────────────────────────────────────────────
-def draw_panel(surf, rect, radius=6, color=PANEL_BG, border=BORDER):
-    """Filled rounded rect with 0.5px-style thin border."""
-    pygame.draw.rect(surf, color,  rect, border_radius=radius)
-    pygame.draw.rect(surf, border, rect, width=1, border_radius=radius)
+# ══════════════════════════════════════════════════════════════
+def rect_panel(surf, r, radius=6, fill=PANEL, border=BORDER):
+    pygame.draw.rect(surf, fill,   r, border_radius=radius)
+    pygame.draw.rect(surf, border, r, width=1, border_radius=radius)
 
-def draw_label(surf, font, text, pos, color=TEXT_DIM):
-    s = font.render(text, True, color)
-    surf.blit(s, pos)
+def hline(surf, y, x0, x1, color=BORDER):
+    pygame.draw.line(surf, color, (x0, y), (x1, y))
 
-def draw_hline(surf, y, x1=0, x2=960, color=BORDER):
-    pygame.draw.line(surf, color, (x1, y), (x2, y))
+def vline(surf, x, y0, y1, color=BORDER):
+    pygame.draw.line(surf, color, (x, y0), (x, y1))
 
-def draw_vline(surf, x, y1=0, y2=640, color=BORDER):
-    pygame.draw.line(surf, x, (x, y1), (x, y2), 1)
+def txt(surf, font, text, pos, color=PRI, anchor="topleft"):
+    s = font.render(str(text), True, color)
+    r = s.get_rect(**{anchor: pos})
+    surf.blit(s, r)
+    return r
 
+def draw_bar(surf, r, pct, color, track=(22, 24, 36)):
+    pygame.draw.rect(surf, track, r, border_radius=2)
+    fw = max(int(r.width * min(pct, 1.0)), 0)
+    if fw:
+        pygame.draw.rect(surf, color,
+                         pygame.Rect(r.x, r.y, fw, r.height),
+                         border_radius=2)
 
-def draw_grid(surf):
-    """Faint pink grid background."""
-    grid_color = (22, 12, 20)
-    for x in range(0, 961, 40):
-        pygame.draw.line(surf, grid_color, (x, 0), (x, 640))
-    for y in range(0, 641, 40):
-        pygame.draw.line(surf, grid_color, (0, y), (960, y))
+def draw_led_dot(surf, pos, color, r=5):
+    pygame.draw.circle(surf, color, pos, r)
+    if any(c > 10 for c in color):
+        g = pygame.Surface((r * 4, r * 4), pygame.SRCALPHA)
+        pygame.draw.circle(g, (*color, 55), (r * 2, r * 2), r * 2)
+        surf.blit(g, (pos[0] - r * 2, pos[1] - r * 2))
 
-
-def draw_bar(surf, rect, pct, color):
-    """Thin horizontal progress bar."""
-    pygame.draw.rect(surf, (25, 27, 38), rect, border_radius=2)
-    filled = pygame.Rect(rect.x, rect.y, int(rect.width * pct), rect.height)
-    if filled.width > 0:
-        pygame.draw.rect(surf, color, filled, border_radius=2)
-
-
-def draw_led(surf, pos, color, radius=5):
-    """LED dot with inner glow."""
-    pygame.draw.circle(surf, color, pos, radius)
-    glow = (*color[:3], 60)
-    glow_surf = pygame.Surface((radius*4, radius*4), pygame.SRCALPHA)
-    pygame.draw.circle(glow_surf, glow, (radius*2, radius*2), radius*2)
-    surf.blit(glow_surf, (pos[0]-radius*2, pos[1]-radius*2))
-
-
-def draw_waveform(surf, frame, rect, bars=64, playing=False):
-    bar_w = rect.width // bars
+def draw_waveform(surf, frame, r, bars=60, playing=False):
+    bw = r.width // bars
     for i in range(bars):
         if playing:
-            h = int((math.sin(frame * 0.15 + i * 0.35) * 0.5 + 0.5) * rect.height * 0.85 + 3)
-            alpha = 180
+            h = int((math.sin(frame * 0.14 + i * 0.32) * 0.5 + 0.5)
+                    * r.height * 0.88 + 2)
+            a = 160
         else:
-            h = 3
-            alpha = 60
-        x = rect.x + i * bar_w
-        y = rect.y + rect.height - h
-        color = (*ACCENT, alpha)
-        s = pygame.Surface((max(bar_w-1, 1), h), pygame.SRCALPHA)
-        s.fill(color)
+            h = 2
+            a = 40
+        x = r.x + i * bw
+        y = r.y + r.height - h
+        s = pygame.Surface((max(bw - 1, 1), h), pygame.SRCALPHA)
+        s.fill((*ACCENT, a))
         surf.blit(s, (x, y))
 
+def draw_grid(surf, w, h, step=40):
+    gc = (18, 10, 16)
+    for x in range(0, w + 1, step):
+        pygame.draw.line(surf, gc, (x, 0), (x, h))
+    for y in range(0, h + 1, step):
+        pygame.draw.line(surf, gc, (0, y), (w, y))
 
-def draw_button(surf, font, text, rect, mouse, active=False,
-                base_col=PANEL_BG, border_col=BORDER,
-                text_col=TEXT_SEC, hover_col=ACCENT):
-    hovered = rect.collidepoint(mouse)
-    bg  = base_col if not (hovered or active) else (18, 8, 16)
-    bdr = hover_col if (hovered or active) else border_col
-    txt = hover_col if (hovered or active) else text_col
-    pygame.draw.rect(surf, bg,  rect, border_radius=6)
-    pygame.draw.rect(surf, bdr, rect, width=1, border_radius=6)
-    # accent bottom strip when active
+def draw_btn(surf, font, label, r, mouse,
+             active=False, danger=False,
+             base=PANEL, hover_col=ACCENT):
+    hov = r.collidepoint(mouse)
+    if danger:
+        bc = (22, 8, 8)
+        bd = RED
+        tc = RED
+    elif hov or active:
+        bc = (20, 9, 16)
+        bd = hover_col
+        tc = hover_col
+    else:
+        bc = base
+        bd = BORDER
+        tc = SEC
+    pygame.draw.rect(surf, bc, r, border_radius=6)
+    pygame.draw.rect(surf, bd, r, width=1, border_radius=6)
     if active:
-        strip = pygame.Rect(rect.x+4, rect.bottom-2, rect.width-8, 2)
-        pygame.draw.rect(surf, hover_col, strip, border_radius=1)
-    label = font.render(text, True, txt)
-    lx = rect.x + (rect.width  - label.get_width())  // 2
-    ly = rect.y + (rect.height - label.get_height()) // 2
-    surf.blit(label, (lx, ly))
+        strip = pygame.Rect(r.x + 4, r.bottom - 2, r.width - 8, 2)
+        pygame.draw.rect(surf, hover_col if not danger else RED,
+                         strip, border_radius=1)
+    s = font.render(label, True, tc)
+    surf.blit(s, (r.x + (r.width  - s.get_width())  // 2,
+                  r.y + (r.height - s.get_height()) // 2))
 
-
-def draw_mono(surf, font, text, pos, color=TEXT_PRI):
-    s = font.render(text, True, color)
-    surf.blit(s, pos)
-
-
-# ─────────────────────────────────────────────
-#  LAYOUT CONSTANTS
-# ─────────────────────────────────────────────
-LEFT_W   = 200
-RIGHT_W  = 240
-TOP_H    = 48
-WAVE_H   = 70
-STATUS_H = 28
-MID_Y    = TOP_H
-MID_H    = 640 - TOP_H - WAVE_H - STATUS_H
-MID_X    = LEFT_W
-MID_W    = 960 - LEFT_W - RIGHT_W
-
-
-# ─────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
 #  MAIN
-# ─────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
 def main():
     pygame.init()
-    screen = pygame.display.set_mode((960, 640))
-    pygame.display.set_caption("KIDA Controller")
+
+    # ── Fullscreen at native resolution ───────────────────────
+    info  = pygame.display.Info()
+    W, H  = info.current_w, info.current_h
+    screen = pygame.display.set_mode(
+        (W, H), pygame.FULLSCREEN | pygame.HWSURFACE | pygame.DOUBLEBUF)
+    pygame.display.set_caption("KIDA")
+    pygame.mouse.set_visible(False)
     clock = pygame.time.Clock()
 
-    # Fonts
-    font_mono  = pygame.font.SysFont("Courier New", 11)
-    font_mono_sm = pygame.font.SysFont("Courier New", 10)
-    font_label = pygame.font.SysFont("Arial", 10)
-    font_body  = pygame.font.SysFont("Arial", 13)
-    font_title = pygame.font.SysFont("Arial", 15, bold=True)
-    font_logo  = pygame.font.SysFont("Courier New", 22, bold=True)
+    # ── Layout ────────────────────────────────────────────────
+    TOP_H   = 48
+    BOT_H   = 56
+    STAT_H  = 22
+    WAVE_H  = BOT_H - STAT_H
+    L_W     = 230
+    R_W     = 260
+    CAM_X   = L_W
+    CAM_Y   = TOP_H
+    CAM_W   = W - L_W - R_W
+    CAM_H   = H - TOP_H - BOT_H
+    LP_X    = 8
+    LP_W    = L_W - 16
+    RP_X    = W - R_W + 12
+    RP_W    = R_W - 24
 
-    # Threads
-    flask_thread = threading.Thread(target=run_flask_server)
-    flask_thread.daemon = True
-    flask_thread.start()
-    print("🌐 Flask server started on http://0.0.0.0:5000")
+    # ── Fonts ─────────────────────────────────────────────────
+    fmono_lg = pygame.font.SysFont("Courier New", 22, bold=True)
+    fmono_md = pygame.font.SysFont("Courier New", 13, bold=True)
+    fmono_sm = pygame.font.SysFont("Courier New", 11)
+    fmono_xs = pygame.font.SysFont("Courier New", 10)
+    fbody    = pygame.font.SysFont("Arial", 13)
+    flabel   = pygame.font.SysFont("Arial", 11)
+    fdpad    = pygame.font.SysFont("Arial", 20, bold=True)
 
-    stats_thread = threading.Thread(target=stats_updater, daemon=True)
-    stats_thread.start()
+    # ── Background threads ────────────────────────────────────
+    threading.Thread(target=run_flask,     daemon=True).start()
+    threading.Thread(target=_stats_worker, daemon=True).start()
+    print("🌐 Flask: http://0.0.0.0:5000")
 
-    # Devices
-    music         = MusicPlayer("/home/nova/Desktop/kida/audio/music/")
-    motors        = MotorController()
-    obstacle_avoid = ObstacleAvoidance(motors=motors)
-    led           = SPI_WS2812_LEDStrip(8, 128)
-    cam           = Picamera2()
+    # ── Hardware ──────────────────────────────────────────────
+    music   = MusicPlayer("/home/nova/Desktop/kida/audio/music/")
+    motors  = MotorController()
+    avoider = ObstacleAvoidance(motors=motors)
+    led     = SPI_WS2812_LEDStrip(8, 128)
+    cam     = Picamera2()
     cam.start_preview()
     cam.start()
 
     if not led.check_spi_state():
-        print("SPI init failed. Exiting.")
+        print("SPI init failed — exiting.")
         return
 
-    # QR code surface
-    local_ip  = get_local_ip()
-    qr_url    = f"http://{local_ip}:5000"
-    qr_surf   = qr_to_pygame_surface(qr_url, size=100)
+    # ── QR code ───────────────────────────────────────────────
+    local_ip = get_local_ip()
+    qr_surf  = make_qr_surface(f"http://{local_ip}:5000", size=110)
 
-    # ── State ──────────────────────────────────
-    MODE_USER = 0
-    MODE_AUTO = 1
-    MODE_CAM  = 2
-    MODE_LABELS = ["USER CONTROL", "AUTONOMOUS", "CAM AVOIDANCE"]
-
-    mode          = MODE_USER
-    speed_levels  = [0.4, 0.6, 0.8, 1.0]
-    speed_idx     = 0
-    speed         = speed_levels[speed_idx]
-    control_mode  = 1
-    music_playing = False
-    video_recording = False
-    video_file_name = None
-    frame         = 0
-    direction     = "STOPPED"
-    led_color     = (0, 0, 0)
-
+    # ── Directories ───────────────────────────────────────────
     photos_dir = "/home/nova/Desktop/kida/photos"
     videos_dir = "/home/nova/Desktop/kida/videos"
     os.makedirs(photos_dir, exist_ok=True)
     os.makedirs(videos_dir, exist_ok=True)
 
-    # ── Button rects ───────────────────────────
-    # Mode tabs (top of center panel)
-    TAB_Y  = MID_Y + 10
-    TAB_H  = 34
-    tab_w  = (MID_W - 30) // 3
-    tabs   = [
-        pygame.Rect(MID_X + 10 + i * (tab_w + 5), TAB_Y, tab_w, TAB_H)
-        for i in range(3)
-    ]
+    # ── State ─────────────────────────────────────────────────
+    MODE_USER, MODE_AUTO = 0, 1
+    mode          = MODE_USER
+    speed_levels  = [0.4, 0.6, 0.8, 1.0]
+    speed_idx     = 0
+    speed         = speed_levels[speed_idx]
+    ctrl_scheme   = 1
+    music_playing = False
+    video_rec     = False
+    video_fname   = None
+    frame         = 0
+    direction     = "STOPPED"
+    led_color     = (0, 0, 0)
+    cam_surf      = pygame.Surface((CAM_W, CAM_H))
+    cam_surf.fill((8, 10, 14))
+    cam_tick      = 0
 
-    # D-pad (center left)
-    DP_X, DP_Y = MID_X + 20, MID_Y + 65
-    DP_S = 44
-    DP_G = 5
-    dpad = {
-        "forward":  pygame.Rect(DP_X + DP_S + DP_G, DP_Y,                   DP_S, DP_S),
-        "left":     pygame.Rect(DP_X,                DP_Y + DP_S + DP_G,    DP_S, DP_S),
-        "stop":     pygame.Rect(DP_X + DP_S + DP_G,  DP_Y + DP_S + DP_G,   DP_S, DP_S),
-        "right":    pygame.Rect(DP_X + (DP_S+DP_G)*2,DP_Y + DP_S + DP_G,   DP_S, DP_S),
-        "backward": pygame.Rect(DP_X + DP_S + DP_G,  DP_Y + (DP_S+DP_G)*2, DP_S, DP_S),
+    # ── Button rects ──────────────────────────────────────────
+    # Mode tabs
+    tab_w  = 145
+    tab_gap = 8
+    tab_y  = (TOP_H - 30) // 2
+    tabs   = [
+        pygame.Rect(L_W + 8 + i * (tab_w + tab_gap), tab_y, tab_w, 30)
+        for i in range(2)
+    ]
+    TAB_LABELS = ["🕹  USER CONTROL", "🤖  AUTONOMOUS"]
+
+    # D-pad
+    DP_Y  = TOP_H + 24
+    DP_S  = 52
+    DP_G  = 6
+    DP_CX = RP_X + RP_W // 2 - DP_S // 2
+    dpad  = {
+        "forward":  pygame.Rect(DP_CX,                DP_Y,                     DP_S, DP_S),
+        "left":     pygame.Rect(DP_CX - DP_S - DP_G,  DP_Y + DP_S + DP_G,      DP_S, DP_S),
+        "stop":     pygame.Rect(DP_CX,                DP_Y + DP_S + DP_G,       DP_S, DP_S),
+        "right":    pygame.Rect(DP_CX + DP_S + DP_G,  DP_Y + DP_S + DP_G,      DP_S, DP_S),
+        "backward": pygame.Rect(DP_CX,                DP_Y + (DP_S + DP_G) * 2, DP_S, DP_S),
     }
-    DPAD_ARROWS = {"forward": "↑", "left": "←", "stop": "■",
-                   "right": "→", "backward": "↓"}
+    DPAD_GLYPHS = {
+        "forward": "▲", "left": "◀", "stop": "■",
+        "right": "▶",  "backward": "▼"
+    }
 
     # Speed dots
-    SPD_Y  = MID_Y + 68
+    spd_y    = DP_Y + (DP_S + DP_G) * 3 + 22
+    spd_w    = (RP_W - DP_G * 3) // 4
     spd_dots = [
-        pygame.Rect(MID_X + 165 + i * 36, SPD_Y, 30, 30)
+        pygame.Rect(RP_X + i * (spd_w + DP_G), spd_y, spd_w, 32)
         for i in range(4)
     ]
-    SCH_Y  = MID_Y + 108
-    sch_dots = [
-        pygame.Rect(MID_X + 165, SCH_Y, 50, 28),
-        pygame.Rect(MID_X + 220, SCH_Y, 60, 28),
+
+    # Scheme
+    sch_y   = spd_y + 48
+    sch_w   = (RP_W - DP_G) // 2
+    sch_btns = [
+        pygame.Rect(RP_X,              sch_y, sch_w, 30),
+        pygame.Rect(RP_X + sch_w + DP_G, sch_y, sch_w, 30),
     ]
 
-    # Camera feed placeholder rect
-    CAM_RECT = pygame.Rect(MID_X + 308, MID_Y + 60, 196, 148)
+    # Capture
+    pv_y    = sch_y + 48
+    pv_w    = (RP_W - DP_G) // 2
+    btn_photo = pygame.Rect(RP_X,             pv_y, pv_w, 34)
+    btn_video = pygame.Rect(RP_X + pv_w + DP_G, pv_y, pv_w, 34)
 
-    # Photo / Video
-    btn_photo = pygame.Rect(CAM_RECT.x,            CAM_RECT.bottom + 6, 94, 30)
-    btn_video = pygame.Rect(CAM_RECT.x + 100,       CAM_RECT.bottom + 6, 96, 30)
+    # Music controls (left panel)
+    mus_base  = TOP_H + 130
+    btn_play  = pygame.Rect(LP_X,                      mus_base + 38, (LP_W - 6) // 2, 30)
+    btn_skip  = pygame.Rect(LP_X + (LP_W - 6) // 2 + 6, mus_base + 38, (LP_W - 6) // 2, 30)
 
-    # Music controls (right panel)
-    RP_X = 960 - RIGHT_W + 10
-    RP_W = RIGHT_W - 20
-    btn_play = pygame.Rect(RP_X,            TOP_H + 90, (RP_W - 6) // 2, 28)
-    btn_skip = pygame.Rect(RP_X + (RP_W - 6) // 2 + 6, TOP_H + 90, (RP_W - 6) // 2, 28)
-
-    # Quick actions (right panel bottom)
-    QA_Y  = TOP_H + MID_H - 80
-    qa_w  = (RP_W - 6) // 2
-    btn_snap  = pygame.Rect(RP_X,            QA_Y,      qa_w, 28)
-    btn_vrec  = pygame.Rect(RP_X + qa_w + 6, QA_Y,      qa_w, 28)
-    btn_led_g = pygame.Rect(RP_X,            QA_Y + 34, qa_w, 28)
-    btn_led_x = pygame.Rect(RP_X + qa_w + 6, QA_Y + 34, qa_w, 28)
-
-    # Back (TAB area)
-    btn_back = pygame.Rect(10, 10, 80, 26)
-
-    # ── Photo / Video helpers ──────────────────
+    # ── Helpers ───────────────────────────────────────────────
     def take_photo():
         fname = os.path.join(photos_dir, f"photo_{int(time.time())}.jpg")
         cam.capture_file(fname)
-        print(f"📸 Photo saved: {fname}")
+        print(f"📸 {fname}")
 
-    def toggle_video_recording():
-        nonlocal video_recording, video_file_name
-        if not video_recording:
-            video_file_name = os.path.join(videos_dir, f"video_{int(time.time())}.h264")
-            cam.start_recording(video_file_name)
-            video_recording = True
-            print(f"🎥 Recording: {video_file_name}")
+    def toggle_video():
+        nonlocal video_rec, video_fname
+        if not video_rec:
+            video_fname = os.path.join(videos_dir, f"video_{int(time.time())}.h264")
+            cam.start_recording(video_fname)
+            video_rec = True
         else:
             cam.stop_recording()
-            video_recording = False
-            print(f"🛑 Stopped recording: {video_file_name}")
-            video_file_name = None
+            video_rec = False
+            video_fname = None
 
-    # ── Main loop ──────────────────────────────
+    def set_led(color):
+        nonlocal led_color
+        led_color = color
+        led.set_all_led_color(*color)
+
+    # ── Main loop ─────────────────────────────────────────────
     running = True
     while running:
         mouse = pygame.mouse.get_pos()
 
-        # ── Stats ──────────────────────────────
         with stats_lock:
-            stats = system_stats.copy()
+            st = system_stats.copy()
 
-        cpu_pct  = min(stats.get("cpu",  0) / 100, 1.0)
-        temp_c   = stats.get("temp", 0)
+        cpu_pct  = min(st.get("cpu",   0) / 100.0, 1.0)
+        temp_c   = st.get("temp",   0)
         temp_pct = min(temp_c / 85.0, 1.0)
-        ram_used  = stats.get("ram_used",  0)
-        ram_total = stats.get("ram_total", 1)
-        ram_pct   = min(ram_used / max(ram_total, 1), 1.0)
-        ip_addr  = stats.get("ip", "N/A")
-        latency  = stats.get("latency", "N/A")
-        threads  = stats.get("threads", 0)
-        disk_r   = stats.get("disk_read_mb",  0)
-        disk_w   = stats.get("disk_write_mb", 0)
-        boot_t   = stats.get("boot_time", "—")
+        ram_u    = st.get("ram_used",   0)
+        ram_t    = st.get("ram_total",  1)
+        ram_pct  = min(ram_u / max(ram_t, 1), 1.0)
+        latency  = st.get("latency",    "N/A")
+        n_thr    = st.get("threads",    0)
+        disk_r   = st.get("disk_read",  0)
+        disk_w   = st.get("disk_write", 0)
+        boot_t   = st.get("boot_time",  "--:--")
 
-        # ═══════════════════════════════════════
-        #  DRAW
-        # ═══════════════════════════════════════
+        # Camera: capture every 2nd frame for performance
+        cam_tick += 1
+        if cam_tick >= 2:
+            cam_tick = 0
+            cam_surf = cam_frame_to_surface(cam, CAM_W, CAM_H)
+
+        # ════════════════════════════════════════════════════
+        #  RENDER
+        # ════════════════════════════════════════════════════
         screen.fill(BG)
-        draw_grid(screen)
+        draw_grid(screen, W, H)
 
-        # ── BORDER LINES ───────────────────────
-        draw_hline(screen, TOP_H)
-        draw_hline(screen, 640 - WAVE_H - STATUS_H)
-        draw_hline(screen, 640 - STATUS_H)
-        pygame.draw.line(screen, BORDER, (LEFT_W,  TOP_H), (LEFT_W,  640 - WAVE_H - STATUS_H))
-        pygame.draw.line(screen, BORDER, (960 - RIGHT_W, TOP_H), (960 - RIGHT_W, 640 - WAVE_H - STATUS_H))
+        # ── Live camera feed fills the center ────────────────
+        screen.blit(cam_surf, (CAM_X, CAM_Y))
 
-        # ══════════════════════════════════════
+        # Soft dark vignette on left/right camera edges
+        # so it blends into the sidebars
+        vw = 32
+        for i in range(vw):
+            a = int(200 * (1 - i / vw))
+            s = pygame.Surface((1, CAM_H), pygame.SRCALPHA)
+            s.fill((0, 0, 0, a))
+            screen.blit(s, (CAM_X + i,           CAM_Y))
+            screen.blit(s, (CAM_X + CAM_W - 1 - i, CAM_Y))
+
+        # HUD corner brackets on camera feed
+        blen = 24
+        bthk = 2
+        for (cx, cy, sx, sy) in [
+            (CAM_X + 6,           CAM_Y + 6,            1,  1),
+            (CAM_X + CAM_W - 6,   CAM_Y + 6,           -1,  1),
+            (CAM_X + 6,           CAM_Y + CAM_H - 6,    1, -1),
+            (CAM_X + CAM_W - 6,   CAM_Y + CAM_H - 6,   -1, -1),
+        ]:
+            pygame.draw.line(screen, ACCENT,
+                             (cx, cy), (cx + sx * blen, cy), bthk)
+            pygame.draw.line(screen, ACCENT,
+                             (cx, cy), (cx, cy + sy * blen), bthk)
+
+        # REC indicator
+        if video_rec and (frame // 15) % 2 == 0:
+            pygame.draw.circle(screen, RED,
+                               (CAM_X + CAM_W - 22, CAM_Y + 14), 5)
+            txt(screen, fmono_xs, "REC",
+                (CAM_X + CAM_W - 14, CAM_Y + 9), RED)
+
+        # Autonomous mode overlay
+        if mode == MODE_AUTO:
+            msg = "— AUTONOMOUS OBSTACLE AVOIDANCE —"
+            ms  = fmono_sm.render(msg, True, TEAL)
+            mx  = CAM_X + (CAM_W - ms.get_width()) // 2
+            my  = CAM_Y + CAM_H - 28
+            ov  = pygame.Surface((ms.get_width() + 20, ms.get_height() + 10),
+                                 pygame.SRCALPHA)
+            ov.fill((0, 0, 0, 130))
+            screen.blit(ov, (mx - 10, my - 4))
+            screen.blit(ms, (mx, my))
+
+        # ── Structural dividers ───────────────────────────────
+        hline(screen, TOP_H,       0, W)
+        hline(screen, H - BOT_H,   0, W)
+        hline(screen, H - STAT_H,  0, W)
+        vline(screen, L_W,         TOP_H, H - BOT_H)
+        vline(screen, W - R_W,     TOP_H, H - BOT_H)
+
+        # ════════════════════════════════════════════════════
         #  TOP BAR
-        # ══════════════════════════════════════
-        logo_surf = font_logo.render("KIDA", True, ACCENT)
-        screen.blit(logo_surf, (18, (TOP_H - logo_surf.get_height()) // 2))
+        # ════════════════════════════════════════════════════
+        logo = fmono_lg.render("KIDA", True, ACCENT)
+        screen.blit(logo, (12, (TOP_H - logo.get_height()) // 2))
 
-        # Status pills
-        pill_x = 80
-        for pill_txt, pill_col in [("ONLINE", GREEN), (MODE_LABELS[mode], ACCENT)]:
-            ps = font_mono_sm.render(pill_txt, True, pill_col)
-            pr = pygame.Rect(pill_x, (TOP_H - 18) // 2, ps.get_width() + 16, 18)
-            pygame.draw.rect(screen, (*pill_col, 30), pr, border_radius=9)
-            pygame.draw.rect(screen, pill_col, pr, width=1, border_radius=9)
-            screen.blit(ps, (pr.x + 8, pr.y + 3))
-            pill_x += pr.width + 8
+        for i, (tr, tl) in enumerate(zip(tabs, TAB_LABELS)):
+            draw_btn(screen, fbody, tl, tr, mouse,
+                     active=(mode == i), hover_col=ACCENT)
 
         # Top-right stat chips
-        chip_x = 955
-        for label, val in [
-            ("THREADS", str(threads)),
-            ("TEMP",    f"{temp_c:.0f}°C"),
-            ("CPU",     f"{stats.get('cpu',0):.0f}%"),
+        chip_x = W - 14
+        for lbl, val in [
+            ("THR",  str(n_thr)),
+            ("TEMP", f"{temp_c:.0f}C"),
+            ("CPU",  f"{st.get('cpu', 0):.0f}%"),
         ]:
-            vs = font_mono.render(val,   True, TEXT_PRI)
-            ls = font_mono.render(label, True, TEXT_DIM)
-            chip_x -= vs.get_width() + 6
+            vs = fmono_sm.render(val, True, AMBER if lbl == "TEMP" and temp_c > 65 else PRI)
+            ls = fmono_xs.render(lbl, True, DIM)
+            chip_x -= vs.get_width() + 4
             screen.blit(vs, (chip_x, (TOP_H - vs.get_height()) // 2))
-            chip_x -= ls.get_width() + 12
+            chip_x -= ls.get_width() + 10
             screen.blit(ls, (chip_x, (TOP_H - ls.get_height()) // 2))
-            chip_x -= 6
+            chip_x -= 12
 
-        # LED dots top-right
-        led_row_x = chip_x - 12
-        led_colors_display = [led_color] * 8
-        for i, lc in enumerate(led_colors_display):
-            dot_col = lc if lc != (0,0,0) else (30, 32, 45)
-            pos = (led_row_x - i * 14, TOP_H // 2)
-            draw_led(screen, pos, dot_col, radius=4)
+        # LED strip preview
+        for i in range(8):
+            dc = led_color if any(c > 10 for c in led_color) else (24, 26, 38)
+            draw_led_dot(screen, (chip_x - 14 - i * 14, TOP_H // 2), dc, r=4)
 
-        # ══════════════════════════════════════
+        # ════════════════════════════════════════════════════
         #  LEFT PANEL
-        # ══════════════════════════════════════
-        LP_X = 10
+        # ════════════════════════════════════════════════════
+        lp_y = TOP_H + 10
 
-        # QR code
-        screen.blit(qr_surf, (LP_X, MID_Y + 8))
+        # QR
+        screen.blit(qr_surf, (LP_X, lp_y))
+        txt(screen, fmono_xs, f"{local_ip}:5000",
+            (LP_X + LP_W // 2, lp_y + 114), AMBER, anchor="midtop")
+        lp_y += 132
 
-        qr_label = font_label.render(f"{local_ip}:5000", True, AMBER)
-        screen.blit(qr_label, (LP_X, MID_Y + 114))
-
-        # Section: SYSTEM
-        sy = MID_Y + 136
-        draw_mono(screen, font_mono_sm, "SYSTEM", (LP_X, sy), TEXT_DIM)
-        sy += 14
-
-        for label, val, pct, bar_col in [
-            ("CPU",  f"{stats.get('cpu',0):.0f}%",        cpu_pct,  ACCENT),
-            ("TEMP", f"{temp_c:.0f}°C",                    temp_pct, AMBER),
-            ("RAM",  f"{ram_used}/{ram_total}MB",           ram_pct,  BLUE),
+        # System stats
+        txt(screen, fmono_xs, "SYSTEM", (LP_X, lp_y), DIM)
+        lp_y += 13
+        for label, val, pct, bc in [
+            ("CPU",  f"{st.get('cpu', 0):.0f}%", cpu_pct,  ACCENT),
+            ("TEMP", f"{temp_c:.0f}C",             temp_pct, AMBER),
+            ("RAM",  f"{ram_u}/{ram_t}M",           ram_pct,  BLUE),
         ]:
-            ls = font_label.render(label, True, TEXT_DIM)
-            vs = font_mono_sm.render(val, True, TEXT_SEC)
-            screen.blit(ls, (LP_X, sy))
-            screen.blit(vs, (LEFT_W - 8 - vs.get_width(), sy))
-            draw_bar(screen, pygame.Rect(LP_X, sy + 13, LEFT_W - 16, 3), pct, bar_col)
-            sy += 24
+            txt(screen, flabel,   label, (LP_X, lp_y), DIM)
+            txt(screen, fmono_xs, val,   (LP_X + LP_W, lp_y + 1), SEC, anchor="topright")
+            draw_bar(screen, pygame.Rect(LP_X, lp_y + 12, LP_W, 3), pct, bc)
+            lp_y += 22
 
-        # Section: NETWORK
-        draw_mono(screen, font_mono_sm, "NETWORK", (LP_X, sy), TEXT_DIM)
-        sy += 14
+        # Network stats
+        lp_y += 4
+        txt(screen, fmono_xs, "NETWORK", (LP_X, lp_y), DIM)
+        lp_y += 13
         for label, val in [
             ("LATENCY", latency),
-            ("THREADS", str(threads)),
+            ("THREADS", str(n_thr)),
             ("DISK R",  f"{disk_r}MB"),
             ("DISK W",  f"{disk_w}MB"),
-            ("BOOT",    boot_t[-8:] if len(str(boot_t)) > 8 else str(boot_t)),
+            ("BOOT",    boot_t),
         ]:
-            ls = font_label.render(label, True, TEXT_DIM)
-            vs = font_mono_sm.render(val,   True, TEXT_SEC)
-            screen.blit(ls, (LP_X, sy))
-            screen.blit(vs, (LEFT_W - 8 - vs.get_width(), sy))
+            txt(screen, flabel,   label, (LP_X, lp_y), DIM)
+            txt(screen, fmono_xs, str(val), (LP_X + LP_W, lp_y + 1), SEC, anchor="topright")
             pygame.draw.line(screen, (20, 22, 32),
-                             (LP_X, sy + 12), (LEFT_W - 4, sy + 12))
-            sy += 16
+                             (LP_X, lp_y + 13), (LP_X + LP_W, lp_y + 13))
+            lp_y += 16
 
-        # ══════════════════════════════════════
-        #  CENTER – MODE TABS
-        # ══════════════════════════════════════
-        tab_labels = ["🕹  USER", "🤖  AUTO", "📷  CAM"]
-        for i, (trect, tlbl) in enumerate(zip(tabs, tab_labels)):
-            draw_button(screen, font_body, tlbl, trect, mouse,
-                        active=(mode == i),
-                        hover_col=ACCENT)
+        # Music section
+        lp_y += 8
+        txt(screen, fmono_xs, "MUSIC", (LP_X, lp_y), DIM)
+        lp_y += 13
 
-        # ── USER / shared controls ──────────────
-        if mode == MODE_USER:
-            # D-pad
-            draw_mono(screen, font_mono_sm, "DIRECTIONAL CONTROL",
-                      (DP_X, DP_Y - 14), TEXT_DIM)
-            for cmd, r in dpad.items():
-                is_stop = cmd == "stop"
-                bc = (26, 8, 18) if is_stop else PANEL_BG
-                tc = ACCENT if is_stop else TEXT_SEC
-                hc = ACCENT
-                draw_button(screen, font_title, DPAD_ARROWS[cmd], r, mouse,
-                            base_col=bc, text_col=tc, hover_col=hc)
+        # Track name
+        track = "No track"
+        try:
+            ct = music.current_track
+            track = (ct() if callable(ct) else ct) or "No track"
+        except Exception:
+            pass
+        tn = fbody.render(str(track)[:26], True, PRI if music_playing else SEC)
+        screen.blit(tn, (LP_X, lp_y))
+        lp_y += 18
 
-            # Speed
-            draw_mono(screen, font_mono_sm, "SPEED", (MID_X + 165, SPD_Y - 14), TEXT_DIM)
-            for i, r in enumerate(spd_dots):
-                draw_button(screen, font_body, str(i+1), r, mouse,
-                            active=(speed_idx == i), hover_col=ACCENT)
+        # Waveform
+        draw_waveform(screen, frame,
+                      pygame.Rect(LP_X, lp_y, LP_W, 26),
+                      bars=26, playing=music_playing)
+        lp_y += 30
 
-            # Scheme
-            draw_mono(screen, font_mono_sm, "SCHEME", (MID_X + 165, SCH_Y - 14), TEXT_DIM)
-            for i, (r, lbl) in enumerate(zip(sch_dots, ["WASD", "QA/WS"])):
-                draw_button(screen, font_label, lbl, r, mouse,
-                            active=(control_mode == i + 1), hover_col=ACCENT)
+        # Music buttons (anchored from mus_base so they don't drift)
+        btn_play = pygame.Rect(LP_X,                        mus_base + 38,
+                               (LP_W - 6) // 2, 30)
+        btn_skip = pygame.Rect(LP_X + (LP_W - 6) // 2 + 6,  mus_base + 38,
+                               (LP_W - 6) // 2, 30)
+        draw_btn(screen, flabel,
+                 "PAUSE" if music_playing else "PLAY",
+                 btn_play, mouse, active=music_playing)
+        draw_btn(screen, flabel, "SKIP", btn_skip, mouse)
 
-        elif mode == MODE_AUTO:
-            msg = "AUTONOMOUS OBSTACLE AVOIDANCE ACTIVE"
-            ms = font_body.render(msg, True, GREEN)
-            screen.blit(ms, (MID_X + 20, MID_Y + 80))
-
-        elif mode == MODE_CAM:
-            msg = "CAMERA NAVIGATION ACTIVE"
-            ms = font_body.render(msg, True, BLUE)
-            screen.blit(ms, (MID_X + 20, MID_Y + 80))
-
-        # Camera feed box
-        draw_panel(screen, CAM_RECT, radius=6,
-                   color=(8, 9, 15), border=(26, 28, 42))
-        cl = font_mono_sm.render("CAM", True, (50, 52, 65))
-        screen.blit(cl, (CAM_RECT.x + (CAM_RECT.w - cl.get_width()) // 2,
-                          CAM_RECT.y + CAM_RECT.h // 2 - 8))
-        # Blink dot
-        if (frame // 15) % 2 == 0:
-            pygame.draw.circle(screen, RED,
-                               (CAM_RECT.right - 10, CAM_RECT.y + 10), 4)
-
-        # Photo / Video buttons
-        draw_button(screen, font_label, "📷  PHOTO", btn_photo, mouse,
-                    hover_col=BLUE, text_col=TEXT_DIM)
-        draw_button(screen, font_label,
-                    "⏹  STOP" if video_recording else "⏺  REC",
-                    btn_video, mouse,
-                    active=video_recording,
-                    base_col=(20, 8, 8) if video_recording else PANEL_BG,
-                    border_col=RED if video_recording else BORDER,
-                    text_col=RED if video_recording else TEXT_DIM,
-                    hover_col=RED)
-
-        # ══════════════════════════════════════
+        # ════════════════════════════════════════════════════
         #  RIGHT PANEL
-        # ══════════════════════════════════════
-        rp_inner = pygame.Rect(RP_X, MID_Y + 8, RP_W, MID_H - 16)
-        ry = MID_Y + 8
+        # ════════════════════════════════════════════════════
+        txt(screen, fmono_xs, "DIRECTIONAL CONTROL",
+            (RP_X, TOP_H + 10), DIM)
 
-        # Music card
-        mcard = pygame.Rect(RP_X, ry, RP_W, 130)
-        draw_panel(screen, mcard)
-        draw_mono(screen, font_mono_sm, "NOW PLAYING", (RP_X + 8, ry + 8), TEXT_DIM)
-        track_name = music.current_track() if hasattr(music, 'current_track') else "No track"
-        tn = font_body.render(track_name[:28], True, TEXT_PRI)
-        screen.blit(tn, (RP_X + 8, ry + 22))
-        # Mini waveform inside card
-        wave_rect = pygame.Rect(RP_X + 4, ry + 40, RP_W - 8, 30)
-        draw_waveform(screen, frame, wave_rect, bars=32, playing=music_playing)
-        # Controls
-        draw_button(screen, font_label,
-                    "⏸  PAUSE" if music_playing else "▶  PLAY",
-                    btn_play, mouse,
-                    active=music_playing, hover_col=ACCENT)
-        draw_button(screen, font_label, "⏭  SKIP", btn_skip, mouse,
-                    hover_col=ACCENT)
-        ry += 138
+        # D-pad
+        for cmd, r in dpad.items():
+            is_stop = cmd == "stop"
+            draw_btn(screen,
+                     fmono_sm if is_stop else fdpad,
+                     DPAD_GLYPHS[cmd], r, mouse,
+                     base=(22, 8, 14) if is_stop else PANEL,
+                     hover_col=ACCENT)
+            # Highlight active direction
+            if cmd != "stop" and direction.lower() == cmd:
+                pygame.draw.rect(screen, ACCENT, r, width=2, border_radius=6)
 
-        # Motor status block
-        draw_mono(screen, font_mono_sm, "MOTOR STATUS", (RP_X, ry), TEXT_DIM)
-        ry += 14
-        for lbl, val in [
-            ("DIRECTION", direction),
-            ("SPEED",     f"{speed:.1f}"),
-            ("SCHEME",    f"MODE {control_mode}"),
-            ("LED",       f"RGB {led_color}"),
+        # Speed
+        txt(screen, fmono_xs, "SPEED LEVEL",
+            (RP_X, spd_y - 14), DIM)
+        for i, r in enumerate(spd_dots):
+            draw_btn(screen, fmono_md, str(i + 1),
+                     r, mouse, active=(speed_idx == i))
+
+        # Scheme
+        txt(screen, fmono_xs, "CONTROL SCHEME",
+            (RP_X, sch_y - 14), DIM)
+        for i, (r, lbl) in enumerate(zip(sch_btns, ["WASD", "QA/WS"])):
+            draw_btn(screen, flabel, lbl, r, mouse,
+                     active=(ctrl_scheme == i + 1))
+
+        # Capture
+        txt(screen, fmono_xs, "CAPTURE",
+            (RP_X, pv_y - 14), DIM)
+        draw_btn(screen, flabel, "PHOTO", btn_photo, mouse, hover_col=BLUE)
+        draw_btn(screen, flabel,
+                 "STOP REC" if video_rec else "REC",
+                 btn_video, mouse,
+                 active=video_rec,
+                 base=(20, 6, 6) if video_rec else PANEL,
+                 hover_col=RED, danger=video_rec)
+
+        # Motor readout at bottom of right panel
+        mrd_y = H - BOT_H - 76
+        for label, val in [
+            ("DIR",    direction),
+            ("SPEED",  f"{speed:.1f}"),
+            ("SCHEME", "WASD" if ctrl_scheme == 1 else "QA/WS"),
+            ("LED",    f"R{led_color[0]} G{led_color[1]} B{led_color[2]}"),
         ]:
-            ms_r = pygame.Rect(RP_X, ry, RP_W, 22)
-            draw_panel(screen, ms_r, radius=4, color=(11, 12, 20), border=(20, 22, 32))
-            ls = font_label.render(lbl, True, TEXT_DIM)
-            vs = font_mono_sm.render(str(val), True, TEXT_SEC)
-            screen.blit(ls, (RP_X + 6, ry + 5))
-            screen.blit(vs, (RP_X + RP_W - vs.get_width() - 6, ry + 5))
-            ry += 26
+            txt(screen, flabel,   label, (RP_X, mrd_y), DIM)
+            txt(screen, fmono_xs, str(val), (RP_X + RP_W, mrd_y), SEC, anchor="topright")
+            pygame.draw.line(screen, (18, 20, 30),
+                             (RP_X, mrd_y + 15), (RP_X + RP_W, mrd_y + 15))
+            mrd_y += 18
 
-        # Quick actions
-        ry += 4
-        draw_mono(screen, font_mono_sm, "QUICK ACTIONS", (RP_X, ry), TEXT_DIM)
-        ry += 14
-        btn_snap  = pygame.Rect(RP_X,            ry,      qa_w, 28)
-        btn_vrec  = pygame.Rect(RP_X + qa_w + 6, ry,      qa_w, 28)
-        btn_led_g = pygame.Rect(RP_X,            ry + 34, qa_w, 28)
-        btn_led_x = pygame.Rect(RP_X + qa_w + 6, ry + 34, qa_w, 28)
-        draw_button(screen, font_label, "📷  SNAP",  btn_snap,  mouse, hover_col=BLUE)
-        draw_button(screen, font_label,
-                    "⏹  STOP" if video_recording else "⏺  VIDEO",
-                    btn_vrec, mouse,
-                    active=video_recording,
-                    border_col=RED if video_recording else BORDER,
-                    text_col=RED if video_recording else TEXT_DIM,
-                    hover_col=RED)
-        draw_button(screen, font_label, "◉  GREEN", btn_led_g, mouse, hover_col=GREEN)
-        draw_button(screen, font_label, "◎  OFF",   btn_led_x, mouse, hover_col=TEXT_DIM)
+        # ════════════════════════════════════════════════════
+        #  BOTTOM — WAVEFORM + STATUS BAR
+        # ════════════════════════════════════════════════════
+        draw_waveform(screen, frame,
+                      pygame.Rect(0, H - BOT_H, W, WAVE_H),
+                      bars=96, playing=music_playing)
 
-        # ══════════════════════════════════════
-        #  BOTTOM WAVEFORM BAR
-        # ══════════════════════════════════════
-        wave_bottom_rect = pygame.Rect(0, 640 - WAVE_H - STATUS_H, 960, WAVE_H)
-        draw_waveform(screen, frame, wave_bottom_rect, bars=80, playing=music_playing)
+        sb_y = H - STAT_H
+        screen.fill((10, 11, 16), pygame.Rect(0, sb_y, W, STAT_H))
+        hline(screen, sb_y, 0, W)
 
-        # ══════════════════════════════════════
-        #  STATUS BAR
-        # ══════════════════════════════════════
-        sb_y = 640 - STATUS_H
-        sb_items = [
-            ("▸ FLASK", f":5000"),
-            ("MODE",    MODE_LABELS[mode]),
-            ("SCHEME",  f"{'WASD' if control_mode==1 else 'QA/WS'}"),
-            ("SPEED",   f"{speed:.1f}"),
-            ("FRAME",   str(frame)),
-        ]
-        sx = 14
-        for lbl, val in sb_items:
-            ls = font_mono_sm.render(lbl, True, TEXT_DIM)
-            vs = font_mono_sm.render(val,  True, TEXT_SEC)
-            screen.blit(ls, (sx, sb_y + (STATUS_H - ls.get_height()) // 2))
+        # Online ping dot
+        pygame.draw.circle(screen, GREEN, (14, sb_y + STAT_H // 2), 4)
+
+        sx = 28
+        for lbl, val in [
+            ("FLASK",  ":5000"),
+            ("MODE",   ["USER CTRL", "AUTONOMOUS"][mode]),
+            ("SCHEME", "WASD" if ctrl_scheme == 1 else "QA/WS"),
+            ("SPEED",  f"{speed:.1f}"),
+            ("FRM",    str(frame)),
+            ("CAM",    "LIVE"),
+        ]:
+            ls = fmono_xs.render(lbl, True, DIM)
+            vs = fmono_xs.render(val,  True, SEC)
+            screen.blit(ls, (sx, sb_y + (STAT_H - ls.get_height()) // 2))
             sx += ls.get_width() + 4
-            screen.blit(vs, (sx, sb_y + (STATUS_H - vs.get_height()) // 2))
-            sx += vs.get_width() + 16
-            # separator
+            screen.blit(vs, (sx, sb_y + (STAT_H - vs.get_height()) // 2))
+            sx += vs.get_width() + 14
             pygame.draw.line(screen, BORDER,
-                             (sx - 6, sb_y + 6), (sx - 6, sb_y + STATUS_H - 6))
+                             (sx - 6, sb_y + 4), (sx - 6, sb_y + STAT_H - 4))
 
-        vers = font_mono_sm.render("KIDA v1.0 · RASPBERRY PI", True, TEXT_DIM)
-        screen.blit(vers, (955 - vers.get_width(),
-                           sb_y + (STATUS_H - vers.get_height()) // 2))
+        vers = fmono_xs.render("KIDA v1.0 · RASPBERRY PI", True, DIM)
+        screen.blit(vers, (W - vers.get_width() - 12,
+                           sb_y + (STAT_H - vers.get_height()) // 2))
 
-        # ══════════════════════════════════════
+        # ════════════════════════════════════════════════════
         #  EVENTS
-        # ══════════════════════════════════════
+        # ════════════════════════════════════════════════════
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
 
-            elif event.type == music.SONG_END:
+            elif event.type == getattr(music, 'SONG_END', -1):
                 music.handle_event(event)
                 music_playing = music.playing
 
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_TAB:
-                    mode = (mode + 1) % 3
-                elif event.key == pygame.K_m and music.playlist:
-                    music.play_next()
-                    music_playing = True
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+                elif event.key == pygame.K_TAB:
+                    mode = 1 - mode
+                elif event.key == pygame.K_m:
+                    music.play_next(); music_playing = True
                 elif event.key == pygame.K_SPACE:
-                    music.stop()
-                    music_playing = False
+                    music.stop();      music_playing = False
                 elif mode == MODE_USER:
                     if event.key == pygame.K_x:
                         speed_idx = (speed_idx + 1) % len(speed_levels)
                         speed = speed_levels[speed_idx]
                     elif event.key == pygame.K_1:
-                        control_mode = 1
+                        ctrl_scheme = 1
                     elif event.key == pygame.K_2:
-                        control_mode = 2
+                        ctrl_scheme = 2
                     elif event.key == pygame.K_c:
                         take_photo()
                     elif event.key == pygame.K_v:
-                        toggle_video_recording()
+                        toggle_video()
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 # Mode tabs
-                for i, trect in enumerate(tabs):
-                    if trect.collidepoint(event.pos):
+                for i, tr in enumerate(tabs):
+                    if tr.collidepoint(event.pos):
                         mode = i
 
                 # D-pad
@@ -712,103 +721,77 @@ def main():
                     for cmd, r in dpad.items():
                         if r.collidepoint(event.pos):
                             if cmd == "forward":
-                                motors.forward(speed); led_color = (0,255,0)
+                                motors.forward(speed);    set_led((0, 255, 0))
                             elif cmd == "backward":
-                                motors.backward(speed); led_color = (255,0,0)
+                                motors.backward(speed);   set_led((255, 0, 0))
                             elif cmd == "left":
-                                motors.turn_left(speed); led_color = (0,0,255)
+                                motors.turn_left(speed);  set_led((0, 0, 255))
                             elif cmd == "right":
-                                motors.turn_right(speed); led_color = (255,255,0)
+                                motors.turn_right(speed); set_led((255, 255, 0))
                             elif cmd == "stop":
-                                motors.stop(); led_color = (0,0,0)
+                                motors.stop();            set_led((0, 0, 0))
                             direction = cmd.upper()
-                            led.set_all_led_color(*led_color)
 
-                    # Speed dots
                     for i, r in enumerate(spd_dots):
                         if r.collidepoint(event.pos):
                             speed_idx = i
                             speed = speed_levels[speed_idx]
 
-                    # Scheme
-                    for i, r in enumerate(sch_dots):
+                    for i, r in enumerate(sch_btns):
                         if r.collidepoint(event.pos):
-                            control_mode = i + 1
+                            ctrl_scheme = i + 1
 
-                    # Photo / Video
                     if btn_photo.collidepoint(event.pos):
                         take_photo()
                     if btn_video.collidepoint(event.pos):
-                        toggle_video_recording()
-                    if btn_snap.collidepoint(event.pos):
-                        take_photo()
-                    if btn_vrec.collidepoint(event.pos):
-                        toggle_video_recording()
-                    if btn_led_g.collidepoint(event.pos):
-                        led_color = (0,255,0); led.set_all_led_color(0,255,0)
-                    if btn_led_x.collidepoint(event.pos):
-                        led_color = (0,0,0);   led.set_all_led_color(0,0,0)
+                        toggle_video()
 
-                # Music
                 if btn_play.collidepoint(event.pos):
                     if music_playing:
-                        music.stop(); music_playing = False
+                        music.stop();      music_playing = False
                     else:
                         music.play_next(); music_playing = True
                 if btn_skip.collidepoint(event.pos) and music_playing:
                     music.play_next()
 
-        # ══════════════════════════════════════
+        # ════════════════════════════════════════════════════
         #  FLASK COMMAND QUEUE
-        # ══════════════════════════════════════
+        # ════════════════════════════════════════════════════
         while not command_queue.empty():
             cmd = command_queue.get()
-            print(f"🤖 Flask cmd: {cmd}")
-
             if cmd in ("up", "forward"):
-                motors.forward(speed); led_color=(0,255,0)
-                direction = "FORWARD"
+                motors.forward(speed);    set_led((0, 255, 0));  direction = "FORWARD"
             elif cmd in ("down", "backward"):
-                motors.backward(speed); led_color=(255,0,0)
-                direction = "BACKWARD"
+                motors.backward(speed);   set_led((255, 0, 0));  direction = "BACKWARD"
             elif cmd == "left":
-                motors.turn_left(speed); led_color=(0,0,255)
-                direction = "LEFT"
+                motors.turn_left(speed);  set_led((0, 0, 255));  direction = "LEFT"
             elif cmd == "right":
-                motors.turn_right(speed); led_color=(255,255,0)
-                direction = "RIGHT"
+                motors.turn_right(speed); set_led((255, 255, 0)); direction = "RIGHT"
             elif cmd == "stop":
-                motors.stop(); led_color=(0,0,0)
-                direction = "STOPPED"
+                motors.stop();            set_led((0, 0, 0));    direction = "STOPPED"
             elif cmd == "photo":
                 take_photo()
             elif cmd == "video":
-                toggle_video_recording()
+                toggle_video()
             elif cmd in ("music", "play_music", "start_music"):
                 if not music_playing:
                     music.play_next(); music_playing = True
             elif cmd in ("stop_music", "pause_music", "music_stop"):
-                if music_playing:
-                    music.stop(); music_playing = False
+                music.stop(); music_playing = False
             elif cmd in ("skip", "skip_music", "next_music"):
                 music.play_next()
             elif cmd == "speed":
                 speed_idx = (speed_idx + 1) % len(speed_levels)
                 speed = speed_levels[speed_idx]
             elif cmd == "mode":
-                control_mode = 2 if control_mode == 1 else 1
-            else:
-                print(f"⚠️ Unknown command: {cmd}")
+                ctrl_scheme = 2 if ctrl_scheme == 1 else 1
 
-            led.set_all_led_color(*led_color)
-
-        # ══════════════════════════════════════
-        #  CONTROL LOGIC
-        # ══════════════════════════════════════
+        # ════════════════════════════════════════════════════
+        #  DRIVE LOGIC
+        # ════════════════════════════════════════════════════
         if mode == MODE_AUTO:
-            if obstacle_avoid.check_and_avoid():
-                led_color = (255, 0, 0)
-                led.set_all_led_color(*led_color)
+            if avoider.check_and_avoid():
+                set_led((255, 0, 0))
                 led.show()
                 pygame.display.flip()
                 frame += 1
@@ -817,30 +800,23 @@ def main():
 
         elif mode == MODE_USER:
             keys = pygame.key.get_pressed()
-            if control_mode == 1:
+            if ctrl_scheme == 1:
                 if keys[pygame.K_w]:
-                    motors.forward(speed);    led_color=(0,255,0);   direction="FORWARD"
+                    motors.forward(speed);    set_led((0, 255, 0));   direction = "FORWARD"
                 elif keys[pygame.K_s]:
-                    motors.backward(speed);   led_color=(255,0,0);   direction="BACKWARD"
+                    motors.backward(speed);   set_led((255, 0, 0));   direction = "BACKWARD"
                 elif keys[pygame.K_a]:
-                    motors.turn_left(speed);  led_color=(0,0,255);   direction="LEFT"
+                    motors.turn_left(speed);  set_led((0, 0, 255));   direction = "LEFT"
                 elif keys[pygame.K_d]:
-                    motors.turn_right(speed); led_color=(255,255,0); direction="RIGHT"
+                    motors.turn_right(speed); set_led((255, 255, 0)); direction = "RIGHT"
                 else:
-                    motors.stop(); led_color=(0,0,0); direction="STOPPED"
+                    motors.stop();            set_led((0, 0, 0));     direction = "STOPPED"
             else:
                 left, right = motors.control_mode_2(keys, speed)
-                if left and right:   led_color=(0,255,255)
-                elif left:           led_color=(255,0,255)
-                elif right:          led_color=(255,165,0)
-                else:                led_color=(0,0,0)
-            led.set_all_led_color(*led_color)
-
-        elif mode == MODE_CAM:
-            # Camera navigation (uncomment when cam_nav is available)
-            # img, scene_description = cam_nav.navigate()
-            led_color = (100, 100, 255)
-            led.set_all_led_color(*led_color)
+                if left and right:   set_led((0, 255, 255))
+                elif left:           set_led((255, 0, 255))
+                elif right:          set_led((255, 165, 0))
+                else:                set_led((0, 0, 0))
 
         if music_playing:
             led.rhythm_wave(frame)
@@ -850,11 +826,12 @@ def main():
         pygame.display.flip()
         clock.tick(30)
 
-    # ── Cleanup ────────────────────────────────
+    # ── Cleanup ───────────────────────────────────────────────
     led.led_close()
     cam.stop_preview()
     cam.stop()
-    obstacle_avoid.cleanup()
+    avoider.cleanup()
+    pygame.mouse.set_visible(True)
     pygame.quit()
 
 
