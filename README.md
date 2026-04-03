@@ -26,21 +26,32 @@
 
 - [WHIP-Robot-v00](https://github.com/CursedPrograms/WHIP-Robot-v00)
 - [KIDA-Robot-v01](https://github.com/CursedPrograms/KIDA-Robot-v01)
-- [KIDA-Robot-v00](https://github.com/CursedPrograms/NORA-Robot-v00)
+- [NORA-Robot-v00](https://github.com/CursedPrograms/NORA-Robot-v00)
 - [ComCentre](https://github.com/CursedPrograms/ComCentre)
 
 <div align="center">
   <img src="images/bg.jpg" alt="KIDA Robot" width="400"/>
 </div>
 
-- Pi 3
-- Freenove Robotics Hat
-- Ultrasonic Sensor
-- PI Camera
-- Line Follower
-- 5v DC Motor
 
-kida_robot_architecture.svg
+## Functions:
+
+- 🎮 Remote Control
+- 🖥️ VNC Control
+- 📸 Image Capture (Photograph)
+- 🎥 Video Recording
+- 📡 Ultrasonic Obstacle Detection
+- ➖ Line Following
+- 📺 Live Video Streaming
+- 🌈 RGB Lighting Control
+
+## 🧩 Hardware Components
+
+- 🛞 Tank-Based Chassis
+- 🧠 Raspberry Pi 3
+- ⚙️ Freenove Robotics HAT
+- 📏 Ultrasonic Sensor
+- 📷 Raspberry Pi Camera Module
 
 # KIDA Pinout Configuration
 
