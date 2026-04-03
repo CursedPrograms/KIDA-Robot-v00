@@ -29,6 +29,50 @@
 - Line Follower
 - 5v DC Motor
 
+# KIDA Pinout Configuration
+
+This document describes the GPIO pin assignments for the KIDA robot.
+
+## Ultrasonic Sensor (HC-SR04)
+
+| Signal       | GPIO Pin |
+|-------------|----------|
+| TRIGGER_PIN | 27       |
+| ECHO_PIN    | 22       |
+
+---
+
+## Infrared Sensors
+
+| Sensor | GPIO Pin |
+|--------|----------|
+| IR01   | 16       |
+| IR02   | 26       |
+| IR03   | 21       |
+
+---
+
+## Motor Pins
+
+**Left Motor:**
+
+| Signal | GPIO Pin |
+|--------|----------|
+| IN1    | 24       |
+| IN2    | 23       |
+
+**Right Motor:**
+
+| Signal | GPIO Pin |
+|--------|----------|
+| IN1    | 5        |
+| IN2    | 6        |
+
+*Note:* These pins correspond to the constructor defaults:
+
+```python
+def __init__(self, left_pins=(24, 23), right_pins=(5, 6)):
+
 📡 SSID: KIDAv00
 🔒 Password: 12345678
 🌐 Access your site at: http://192.168.4.1:5000
