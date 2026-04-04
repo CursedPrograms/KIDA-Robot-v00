@@ -6,6 +6,7 @@ import time
 import cv2
 from picamera2 import Picamera2
 
+
 app = Flask(__name__)
 command_queue = queue.Queue()
 
