@@ -108,42 +108,20 @@ Uses the V2 robot Hat from the Freenove Tank Robot: https://github.com/Freenove/
 
 ## How to Run:
 
+### Environment Setup/Install Dependencies
+
 ```bash
 python3 -m venv venv
 source venv/bin/activate
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
-
-### Install Requirements
-
-Using Python directly:
+### Run run.py to run KIDA
 
 ```bash
-pip install -r requirements.txt
-```
-Or run: 
-- `install_requirements.bat`
-  
-  <br>
-
-### Run main.py
-
-Using Python directly:
-
-```bash
-source venv/bin/activate
-python main.py
+python run.py
 ```
 
-Using provided scripts:
-
-Windows:
-- `.\run.bat`
-or
-- `.\run.ps1`
-
-Unix-like systems (Linux/macOS):
-- `.\run.sh`
   <br>  
 
 ### Network Setup
