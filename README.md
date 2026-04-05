@@ -30,6 +30,7 @@ A Raspberry Pi 3 robot is a small programmable robot powered by a Raspberry Pi 3
 - [KIDA-Robot-v01](https://github.com/CursedPrograms/KIDA-Robot-v01)
 - [NORA-Robot-v00](https://github.com/CursedPrograms/NORA-Robot-v00)
 - [ComCentre](https://github.com/CursedPrograms/ComCentre)
+- [RIFT](https://github.com/CursedPrograms/RIFT)
 
  <br>
 <div align="center">
