@@ -33,6 +33,7 @@ from obstacle_avoidance import ObstacleAvoidance
 from line_follower      import LineFollower
 from led_control        import SPI_WS2812_LEDStrip
 from audio_analysis     import AudioAnalyzer
+#from server import 
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(

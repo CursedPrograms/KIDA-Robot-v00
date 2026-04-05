@@ -22,6 +22,8 @@
 
 # KIDA (v00): Kinetic Interactive Drive Automaton
 
+A Raspberry Pi 3 robot is a small programmable robot powered by a Raspberry Pi 3 Model B, used as its main brain.
+
 ## Related Projects
 
 - [WHIP-Robot-v00](https://github.com/CursedPrograms/WHIP-Robot-v00)
@@ -64,6 +66,7 @@
 # KIDA Pinout Configuration
 
 This document describes the GPIO pin assignments for the KIDA robot.
+Uses the V2 robot Hat from the Freenove Tank Robot: https://github.com/Freenove/Freenove_Tank_Robot_Kit_for_Raspberry_Pi
 
 ## Ultrasonic Sensor (HC-SR04)
 
