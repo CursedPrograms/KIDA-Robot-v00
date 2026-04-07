@@ -26,6 +26,10 @@ def get_ip():
         s.close()
     return IP
 
+# --- ZEROCONF SETUP ---
+my_ip = get_ip()
+zeroconf = Zeroconf(interfaces=[my_ip]) # Explicitly bind to the LAN IP
+
 class MyListener:
     def remove_service(self, zeroconf, type, name):
         short_name = name.split('.')[0]
@@ -33,9 +37,11 @@ class MyListener:
             del found_servers[short_name]
 
     def add_service(self, zeroconf, type, name):
+        self.update_service(zeroconf, type, name) # Redirect to update logic
+
+    def update_service(self, zeroconf, type, name):
         info = zeroconf.get_service_info(type, name)
         if info:
-            # Convert binary IP to string
             addresses = [socket.inet_ntoa(addr) for addr in info.addresses]
             if addresses:
                 short_name = name.split('.')[0]
