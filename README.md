@@ -38,7 +38,7 @@ Core Features
 - [x] Reactive Autonomy: Integrated Ultrasonic obstacle avoidance and high-contrast line-following logic.
 - [x] Visual Feedback: Customizable RGB lighting for status signaling and environmental illumination.
 
-<details>
+</details>
 
 ## Related Projects
 
