@@ -12,7 +12,7 @@
 
 <div align="center">
   <img alt="Raspberry Pi" src="https://img.shields.io/badge/-Raspberry_Pi-323330?style=for-the-badge&logo=raspberry-pi&logoColor=white"/>
->
+
 </div>
 
 <div align="center">
@@ -38,6 +38,33 @@ Core Features
 - [x] Visual Feedback: Customizable RGB lighting for status signaling and environmental illumination.
 
 </details>
+
+<details>
+<summary><b>View Keybindings</b></summary>
+### ⚙️ Mode Selection
+Use the numeric keys to hot-swap between drive logics:
+* <kbd>1</kbd> **Switch to Mode 1** (Standard WASD Vectoring)
+* <kbd>2</kbd> **Switch to Mode 2** (Independent Tank-Style Control)
+
+### 🏎️ Movement Controls
+
+| Input | **Mode 1: Coordinated** | **Mode 2: Independent** |
+| :--- | :--- | :--- |
+| <kbd>Q</kbd> | Rotate Left | **Left Bank Forward** |
+| <kbd>A</kbd> | Strafe Left | **Left Bank Backward** |
+| <kbd>W</kbd> | Move Forward | **Right Bank Forward** |
+| <kbd>S</kbd> | Move Backward | **Right Bank Backward** |
+| <kbd>D</kbd> | Strafe Right | — |
+
+### 🎵 Media & System
+* <kbd>M</kbd> **Play Music**
+* <kbd>Space</kbd> **Stop Music** / Audio Interrupt
+
+> [!TIP]
+> Use **Mode 2** for heavy terrain or precise pivoting, and **Mode 1** for smooth, cinematic strafing.
+
+</details>
+
 
 ## Related Projects
 
