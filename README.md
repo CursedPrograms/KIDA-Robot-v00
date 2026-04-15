@@ -41,6 +41,7 @@ Core Features
 
 <details>
 <summary><b>View Keybindings</b></summary>
+
 ### ⚙️ Mode Selection
 Use the numeric keys to hot-swap between drive logics:
 * <kbd>1</kbd> **Switch to Mode 1** (Standard WASD Vectoring)
