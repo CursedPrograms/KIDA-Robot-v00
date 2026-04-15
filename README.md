@@ -20,28 +20,11 @@
   </div>
   <br>
 
+---
+
 # KIDA (v00): Kinetic Interactive Drive Automaton
 
 A Raspberry Pi 3 robot is a small programmable robot powered by a Raspberry Pi 3 Model B, used as its main brain.
-
-## Related Projects
-
-- [WHIP-Robot-v00](https://github.com/CursedPrograms/WHIP-Robot-v00)
-- [KIDA-Robot-v01](https://github.com/CursedPrograms/KIDA-Robot-v01)
-- [NORA-Robot-v00](https://github.com/CursedPrograms/NORA-Robot-v00)
-- [ComCentre](https://github.com/CursedPrograms/ComCentre)
-- [RIFT](https://github.com/CursedPrograms/RIFT)
-
- <br>
-<div align="center">
-  <img src="images/bg.jpg" alt="KIDA Robot" width="400"/>
-</div>
- <br>
-
-- pip install flask picamera2 opencv-python psutil
-- python server.py
-- then open http://<pi-ip>:5000 on any device on your network
-
 
 ## Functions:
 
@@ -56,18 +39,75 @@ A Raspberry Pi 3 robot is a small programmable robot powered by a Raspberry Pi 3
 - 🌈 RGB Lighting Control
 - Gender/Age Detection
 
-## 🧩 Hardware Components
+## Related Projects
 
-- 🛞 Tank-Based Chassis
-- 🧠 Raspberry Pi 3
-- ⚙️ Freenove Robotics HAT
-- 📏 Ultrasonic Sensor
-- 📷 Raspberry Pi Camera Module
+- [WHIP-Robot-v00](https://github.com/CursedPrograms/WHIP-Robot-v00)
+- [KIDA-Robot-v01](https://github.com/CursedPrograms/KIDA-Robot-v01)
+- [NORA-Robot-v00](https://github.com/CursedPrograms/NORA-Robot-v00)
+- [ComCentre](https://github.com/CursedPrograms/ComCentre)
+- [RIFT](https://github.com/CursedPrograms/RIFT)
 
-# KIDA Pinout Configuration
+---
 
-This document describes the GPIO pin assignments for the KIDA robot.
+<div align="center">
+  <img src="images/bg.jpg" alt="KIDA Robot" width="400"/>
+</div>
+<br>
+
+## Prerequisites
+<details>
+<summary><b>View Prerequisites</b></summary>
+
+### Software
+- [Raspberry Pi OS](https://www.raspberrypi.com/software/operating-systems/)
+
+## Hardware
+
+### Compute
+| **Component** | **Details** |
+|-----------|---------|
+| Main Board | Raspberry Pi 5 (4GB) |
+| GPIO Hat | Freenove Tank Robot HAT v2 |
+
+### Chassis & Motion
+| **Component** | **Details** |
+|-----------|---------|
+| Chassis | Robot Tank Chassis |
+| Motors | 2× 5v DC Motors |
+
+### User Controllers
+| **Component** | **Details** |
+|-----------|---------|
+| Interface | PC, Android, iPhone |
+| Controller | Wireless Keyboard, IR remote |
+
+### Cameras
+| **Component** | **Details** |
+|-----------|---------|
+| Camera 0 | Raspberry Pi Camera |
+
+### Sensors
+| **Component** | **Details** |
+|-----------|---------|
+| Ultrasonic Sensors | HC-SR04|
+| Line Follower | 3-Channel Line Tracking Sensor |
+
+### Power System
+| **Component** | **Details** |
+|-----------|---------|
+| Battery | 2s 18650|
+
+</details>
+
+# Schematics
+## ⚡ Technical Pinouts
+
+> [!IMPORTANT]
+> This document describes the GPIO pin assignments for the KIDA robot.
 Uses the V2 robot Hat from the Freenove Tank Robot: https://github.com/Freenove/Freenove_Tank_Robot_Kit_for_Raspberry_Pi
+
+<details>
+<summary><b>View Freenove Tank Robot HAT v2 Configuration</b></summary>
 
 ## Ultrasonic Sensor (HC-SR04)
 
@@ -104,11 +144,39 @@ Uses the V2 robot Hat from the Freenove Tank Robot: https://github.com/Freenove/
 | IN1    | 5        |
 | IN2    | 6        |
 
+</details>
+
 *Note:* These pins correspond to the constructor defaults:
+
+---
+
+## 🌐 Connectivity & Controls
+
+<details>
+<summary><b>Connectivity & Controls</b></summary>
+
+### Network Configuration
+| Parameter | Value |
+| :--- | :--- |
+| **SSID** | `NORA` |
+| **Password** | `12345678` |
+
+* `localhost:5002`
+
+### RIFT Integration
+To connect via [RIFT](https://github.com/CursedPrograms/RIFT), ensure KIDA01 is active on:
+* `localhost:5003`
+
+<details>
+
+---
 
 ## How to Run:
 
-### Environment Setup/Install Dependencies
+### Environment Setup
+
+<details>
+<summary><b>View Environment Setup</b></summary>
 
 ```bash
 python3 -m venv venv
@@ -116,25 +184,14 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
+
+</details>
+
 ### Run run.py to run KIDA
 
 ```bash
 python run.py
 ```
-
-  <br>  
-
-### Network Setup
-
-<div align="center">
-  <img src="images/screenshot.png" alt="KIDA Web Control" width="800"/>
-</div>
-
-- 📡 SSID: KIDAv00
-- 🔒 Password: 12345678
-- 🌐 Access your site at: http://192.168.4.1:5000
-
-  <br> 
 
 ```bash
 sudo apt update
@@ -198,6 +255,10 @@ sudo systemctl unmask hostapd
 sudo systemctl enable hostapd
 sudo systemctl enable dnsmasq
 ```
+
+- pip install flask picamera2 opencv-python psutil
+- python server.py
+- then open http://<pi-ip>:5000 on any device on your network
 
 ## Requirements:
 
