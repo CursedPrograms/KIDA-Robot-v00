@@ -38,6 +38,9 @@ Core Features
 - [x] Visual Feedback: Customizable RGB lighting for status signaling and environmental illumination.
 
 </details>
+
+---
+
 <details>
 <summary><b>Keybindings</b></summary>
 
