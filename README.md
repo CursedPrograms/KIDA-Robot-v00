@@ -60,11 +60,10 @@ Use the numeric keys to hot-swap between drive logics:
 * <kbd>M</kbd> **Play Music**
 * <kbd>Space</kbd> **Stop Music** / Audio Interrupt
 
-> [!TIP]
-> Use **Mode 2** for heavy terrain or precise pivoting, and **Mode 1** for smooth, cinematic strafing.
-
 </details>
 
+> [!TIP]
+> Use **Mode 2** for heavy terrain or precise pivoting, and **Mode 1** for smooth, cinematic strafing.
 
 ## Related Projects
 
