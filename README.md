@@ -28,7 +28,7 @@
 <details>
 <summary><b>Overview</b></summary>
 
-KIDA v00 is the foundational entry in the Kinetic series, built on the Raspberry Pi 3 Model B. While the newer iterations focus on edge AI, v00 is a versatile teleoperated and autonomous scout designed for robust remote monitoring and computer vision tasks.
+KIDA v00 is the foundational entry in the Kinetic series, built on the Raspberry Pi 3 Model B. v00 is a versatile teleoperated and autonomous scout designed for robust remote monitoring and computer vision tasks.
 
 Core Features
 - [x] Multi-Protocol Control: Seamless operation via Web Interface, VNC, or direct Remote Control.
