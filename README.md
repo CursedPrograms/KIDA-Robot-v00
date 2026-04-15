@@ -26,7 +26,7 @@
 ## 📖 Overview
 
 <details>
-<summary><b>View Overview</b></summary>
+<summary><b>Overview</b></summary>
 
 KIDA v00 is the foundational entry in the Kinetic series, built on the Raspberry Pi 3 Model B. While the newer iterations focus on edge AI, v00 is a versatile teleoperated and autonomous scout designed for robust remote monitoring and computer vision tasks.
 
@@ -39,7 +39,7 @@ Core Features
 
 </details>
 <details>
-<summary><b>View Keybindings</b></summary>
+<summary><b>Keybindings</b></summary>
 
 ### ⚙️ Mode Selection
 Use the numeric keys to hot-swap between drive logics:
@@ -82,7 +82,7 @@ Use the numeric keys to hot-swap between drive logics:
 
 ## Prerequisites
 <details>
-<summary><b>View Prerequisites</b></summary>
+<summary><b>Prerequisites</b></summary>
 
 ### Software
 - [Raspberry Pi OS](https://www.raspberrypi.com/software/operating-systems/)
@@ -133,7 +133,7 @@ Use the numeric keys to hot-swap between drive logics:
 Uses the V2 robot Hat from the Freenove Tank Robot: https://github.com/Freenove/Freenove_Tank_Robot_Kit_for_Raspberry_Pi
 
 <details>
-<summary><b>View Freenove Tank Robot HAT v2 Configuration</b></summary>
+<summary><b>Freenove Tank Robot HAT v2 GPIO Configuration</b></summary>
 
 ## Ultrasonic Sensor (HC-SR04)
 
@@ -202,7 +202,7 @@ To connect via [RIFT](https://github.com/CursedPrograms/RIFT), ensure KIDA01 is 
 ### Environment Setup
 
 <details>
-<summary><b>View Environment Setup</b></summary>
+<summary><b>Environment Setup</b></summary>
 
 ```bash
 python3 -m venv venv
