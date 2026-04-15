@@ -167,7 +167,7 @@ Uses the V2 robot Hat from the Freenove Tank Robot: https://github.com/Freenove/
 To connect via [RIFT](https://github.com/CursedPrograms/RIFT), ensure KIDA01 is active on:
 * `localhost:5003`
 
-<details>
+</details>
 
 ---
 
