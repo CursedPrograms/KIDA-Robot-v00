@@ -38,7 +38,6 @@ Core Features
 - [x] Visual Feedback: Customizable RGB lighting for status signaling and environmental illumination.
 
 </details>
-
 <details>
 <summary><b>View Keybindings</b></summary>
 
@@ -51,11 +50,11 @@ Use the numeric keys to hot-swap between drive logics:
 
 | Input | **Mode 1: Coordinated** | **Mode 2: Independent** |
 | :--- | :--- | :--- |
-| <kbd>Q</kbd> | Rotate Left | **Left Bank Forward** |
-| <kbd>A</kbd> | Strafe Left | **Left Bank Backward** |
+| <kbd>Q</kbd> | — | **Left Bank Forward** |
+| <kbd>A</kbd> | Rotate Left | **Left Bank Backward** |
 | <kbd>W</kbd> | Move Forward | **Right Bank Forward** |
 | <kbd>S</kbd> | Move Backward | **Right Bank Backward** |
-| <kbd>D</kbd> | Strafe Right | — |
+| <kbd>D</kbd> | Rotate Right | — |
 
 ### 🎵 Media & System
 * <kbd>M</kbd> **Play Music**
