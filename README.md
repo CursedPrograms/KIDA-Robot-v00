@@ -200,7 +200,7 @@ To connect via [RIFT](https://github.com/CursedPrograms/RIFT), ensure KIDA01 is 
 
 ---
 
-## How to Run:
+## Setup:
 
 ### Environment Setup
 
