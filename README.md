@@ -101,7 +101,7 @@ Use the numeric keys to hot-swap between drive logics:
 ### Compute
 | **Component** | **Details** |
 |-----------|---------|
-| Main Board | Raspberry Pi 5 (4GB) |
+| Main Board | Raspberry Pi 3B |
 | GPIO Hat | Freenove Tank Robot HAT v2 |
 
 ### Chassis & Motion
@@ -114,7 +114,7 @@ Use the numeric keys to hot-swap between drive logics:
 | **Component** | **Details** |
 |-----------|---------|
 | Interface | PC, Android, iPhone |
-| Controller | Wireless Keyboard, IR remote |
+| Controller | Wireless Keyboard |
 
 ### Cameras
 | **Component** | **Details** |
@@ -138,7 +138,7 @@ Use the numeric keys to hot-swap between drive logics:
 ## ⚡ Technical Pinouts
 
 > [!IMPORTANT]
-> This document describes the GPIO pin assignments for the KIDA robot.
+> This section describes the GPIO pin assignments for the KIDA robot.
 
 
 KIDA uses the V2 robot Hat from the [Freenove Tank Robot](https://github.com/Freenove/Freenove_Tank_Robot_Kit_for_Raspberry_Pi): 
