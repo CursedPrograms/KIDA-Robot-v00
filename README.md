@@ -138,7 +138,9 @@ Use the numeric keys to hot-swap between drive logics:
 
 > [!IMPORTANT]
 > This document describes the GPIO pin assignments for the KIDA robot.
-Uses the V2 robot Hat from the Freenove Tank Robot: https://github.com/Freenove/Freenove_Tank_Robot_Kit_for_Raspberry_Pi
+
+
+KIDA uses the V2 robot Hat from the [Freenove Tank Robot](https://github.com/Freenove/Freenove_Tank_Robot_Kit_for_Raspberry_Pi): 
 
 <details>
 <summary><b>Freenove Tank Robot HAT v2 GPIO Configuration</b></summary>
