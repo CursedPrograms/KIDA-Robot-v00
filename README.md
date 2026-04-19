@@ -272,13 +272,13 @@ chmod +x make_executables.sh
 #### Line Follower:
 
 ```bash
-run_linefollower.sh
+./run_linefollower.sh
 ```
 
 #### Obstacle Detection:
 
 ```bash
-run_obstacle_detection.sh
+./run_obstacle_detection.sh
 ```
 
 </details>
