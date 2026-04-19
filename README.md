@@ -164,6 +164,14 @@ KIDA uses the V2 robot Hat from the [Freenove Tank Robot](https://github.com/Fre
 
 ---
 
+## LEDpixel
+
+| Signal       | GPIO Pin |
+|-------------|----------|
+| LEDpixel | 10      |
+
+---
+
 ## Infrared Sensors
 
 | Sensor | GPIO Pin |
