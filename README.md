@@ -281,13 +281,12 @@ run_linefollower.sh
 run_obstacle_detection.sh
 ```
 
+</details>
+
 *Note:* You can also just double click on any *.sh
 
 > [!IMPORTANT]
 > Ensure you have granted permissions via chmod before attempting to run the .sh files for the first time.
-
-
-</details>
 
 <br>
 <div align="center">
