@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 face_detector.py — Background thread for DeepFace gender/age analysis.
 """

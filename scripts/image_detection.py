@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import cv2
 from PIL import Image
 import os

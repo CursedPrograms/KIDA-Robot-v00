@@ -1,9 +1,10 @@
+#!/usr/bin/env python3
+
 import time
 import logging
 from gpiozero import DistanceSensor
 
 logger = logging.getLogger(__name__)
-
 
 class ObstacleAvoidance:
     """

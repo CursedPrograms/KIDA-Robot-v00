@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 system_monitor.py — Background thread that polls CPU, RAM, temp, network stats.
 """

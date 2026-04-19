@@ -5,6 +5,9 @@
 
   "EntryPoints": {
     "Main": "main.py",
+    "UI": "ui.py",
+    "Line Follower": "ui.py",
+    "Obstacle Avoidance": "ui.py",
     "Setup": "scripts/install-dependencies.py"
   },
 
@@ -13,9 +16,9 @@
     "Scripts": "scripts/",
     "Assets": "assets/",
     "Audio": "audio/",
+    "Audio": "audio/music",
     "Images": "images/",
     "Videos": "videos/",
     "Photos": "photos/"
   }
-}
 }

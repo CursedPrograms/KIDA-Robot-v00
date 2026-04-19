@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # mode_control.py
 """
 Mode definitions for KIDA.

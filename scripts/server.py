@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # server.py — KIDA Web Control Server
 from flask import Flask, jsonify, request, Response, render_template_string
 import threading

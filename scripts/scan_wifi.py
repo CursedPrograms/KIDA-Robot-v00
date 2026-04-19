@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 """
 Multi-method WiFi device scanner.
 Combines ARP, ping sweep, and nmap for best coverage.

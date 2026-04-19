@@ -1,5 +1,7 @@
+#!/usr/bin/env python3
+
 """
-main.py — KIDA v2.4  Entry point.
+main.py — KIDA v0.0  Entry point.
 Handles hardware init, event loop, drive logic, and shutdown.
 
 Drive schemes

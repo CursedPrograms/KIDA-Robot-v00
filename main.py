@@ -14,14 +14,14 @@ def main():
 
     scripts = {
         "1": {
-            "name": "Run 'Script00'",
-            "description": "This is Script01",
-            "file_name": "scripts/script00.py"
+            "name": "Run 'Line Follower'",
+            "description": "Line following behavior",
+            "file_name": "scripts/line_follower.py"
         },
         "2": {
-            "name": "Run 'Script01",
-            "description": "This is Script01",
-            "file_name": "scripts/script01.py"
+            "name": "Run 'Obstacle Avoidance",
+            "description": "Obstacle avoidance behavior",
+            "file_name": "scripts/obstacle_avoidance.py"
         },
         "00": {
             "name": "Run 'install_dependencies.py'",

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 camera_utils.py — Camera capture helpers and QR code generator.
 """

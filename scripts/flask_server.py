@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 flask_server.py — Flask app + Zeroconf mesh discovery.
 KIDA registers itself on the local network and discovers other robots/nodes

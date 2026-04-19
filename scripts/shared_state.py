@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 shared_state.py — Global queues, locks, and state dicts shared across modules.
 Import from here; never re-declare these elsewhere.

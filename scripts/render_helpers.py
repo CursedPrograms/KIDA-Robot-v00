@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 render_helpers.py — All pygame draw primitives and named render sections.
 No mutable global state — everything is passed as arguments.

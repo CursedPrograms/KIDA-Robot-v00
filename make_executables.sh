@@ -2,13 +2,31 @@
 
 echo "🔧 Setting execute permissions..."
 
-chmod +x run
-chmod +x install_requirements
-chmod +x freeze_requirements
-chmod +x setup
-chmod +x run_server
-chmod +x run_obstacle_detection
-chmod +x run_linefollower
+FILES=(
+    "run.sh"
+    "install_requirements.sh"
+    "freeze_requirements.sh"
+    "run.sh"
+    "setup.sh"
+    "run_server.sh"
+    "run_linefollower.sh"
+    "run_obstacle_detection.sh"
+    "clear_commits.sh"
+)
 
-echo "✅ Permissions set!"
+for file in "${FILES[@]}"; do
+    if [ -f "$file" ]; then
+        # Remove Windows carriage returns if they exist
+        sed -i 's/\r$//' "$file" 2>/dev/null
+        
+        # Set execute permission
+        chmod +x "$file"
+        echo "✔ $file (Permissions set & Line endings fixed)"
+    else
+        echo "⚠ $file not found"
+    fi
+done
+
+echo "---"
+echo "✅ Done! You can now run your scripts using ./script_name.sh"
 
