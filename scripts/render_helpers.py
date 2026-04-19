@@ -245,7 +245,7 @@ def render_left_panel(screen, qr_surf, local_ip, st,
     screen.blit(qr_surf, (qr_x, lp_y))
     url_y = lp_y + qr_w + 10
     txt(screen, fmono_md, str(local_ip), (lp_x + lp_w // 2, url_y), AMBER, anchor="midtop")
-    txt(screen, fmono_sm, "port  5000",
+    txt(screen, fmono_sm, "port  5003",
         (lp_x + lp_w // 2, url_y + fmono_md.get_height() + 2), SEC, anchor="midtop")
     lp_y = url_y + fmono_md.get_height() + fmono_sm.get_height() + 14
     txt(screen, fmono_xs, "SCAN TO OPEN DASHBOARD",
@@ -329,7 +329,7 @@ def render_bottom_bar(screen, mode, ctrl_scheme, speed, face_count, frame,
     pygame.draw.circle(screen, GREEN, (14, sb_y + BOT_H // 2), 5)
     sx = 28
     for lbl, val in [
-        ("FLASK",  ":5000"),
+        ("FLASK",  ":5003"),
         ("MODE",   mode.name),
         ("SCHEME", "WASD" if ctrl_scheme == 1 else "QA/WS"),
         ("SPEED",  f"{speed:.1f}"),

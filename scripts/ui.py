@@ -40,7 +40,7 @@ from shared_state      import (
     _face_results, _face_lock,
     _face_frame_q, _face_enabled, _deepface_ok,
 )
-from flask_server      import run_flask
+from flask_server      import run_flask, shutdown_zeroconf
 from system_monitor    import start_stats_thread, get_local_ip
 from face_detector     import start_face_thread
 from camera_utils      import cam_to_surface, make_qr
@@ -201,7 +201,7 @@ def main() -> None:
         pygame.quit();  return
 
     local_ip   = get_local_ip()
-    qr_surf    = make_qr(f"http://{local_ip}:5000", size=130)
+    qr_surf    = make_qr(f"http://{local_ip}:5003", size=130)
     photos_dir = "../kida/photos"
     videos_dir = "../kida/videos"
     face_dir   = "../kida/faces"
@@ -541,6 +541,7 @@ def main() -> None:
 
     # ── Cleanup ────────────────────────────────────────────────────────────────
     logger.info("Shutting down…")
+    shutdown_zeroconf()
     switch_mode(ds["mode"], Mode.USER, ctx)
     _face_enabled.clear()
     if ds["video_rec"]:
