@@ -1,2 +1,9 @@
-sudo apt install python3-rpi.gpio python3-picamera2 ffmpeg
-pip install qrcode[pil] pillow
+# Update system
+sudo apt update
+
+# Install libcamera and Picamera2 dependencies
+sudo apt install python3-picamera2 libcap-dev ffmpeg -y
+
+# Ensure SPI and I2C are enabled
+sudo raspi-config nonint do_spi 0
+sudo raspi-config nonint do_i2c 0
