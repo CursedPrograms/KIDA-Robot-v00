@@ -310,10 +310,6 @@ sudo systemctl enable hostapd
 sudo systemctl enable dnsmasq
 ```
 
-- pip install flask picamera2 opencv-python psutil
-- python server.py
-- then open http://<pi-ip>:5000 on any device on your network
-
 <br>
 <div align="center">
 © Cursed Entertainment 2026
