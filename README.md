@@ -261,14 +261,14 @@ pip install -r requirements.txt
 <details>
 <summary><b>How to run:</b></summary>
 
-1. Standard Execution
+**1. Standard Execution**
 - Run the main application using the Python interpreter:
 
 ```bash
 python run.py
 ```
 
-2. Using Shell Scripts
+**2. Using Shell Scripts**
 - If you prefer using shell scripts, first ensure the files have the necessary execution permissions:
 
 ```bash
