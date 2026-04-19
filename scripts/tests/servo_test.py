@@ -1,46 +1,49 @@
-#!/usr/bin/env python3
-
 from gpiozero import Servo
 from time import sleep
 
 # Hardware Configuration
-SERVO0_PIN = 12
-SERVO1_PIN = 13
+# Updated to include the new GPIO 19
+PINS = [12, 13, 19]
+servos = []
 
-# Initialize Servos
-# We use a standard pulse width range (min=1ms, max=2ms)
-servo0 = Servo(SERVO0_PIN)
-servo1 = Servo(SERVO1_PIN)
+print("--- KIDA Triple Servo Initialization ---")
 
-def test_sweep(servo_obj, name):
-    print(f"--- Testing {name} ---")
-    
-    print("Moving to MIN position...")
-    servo_obj.min()
-    sleep(1)
-    
-    print("Moving to MID position...")
-    servo_obj.mid()
-    sleep(1)
-    
-    print("Moving to MAX position...")
-    servo_obj.max()
-    sleep(1)
-    
-    print("Returning to MID...")
-    servo_obj.mid()
-    sleep(0.5)
+for pin in PINS:
+    try:
+        servos.append(Servo(pin))
+        print(f"✅ Servo initialized on GPIO {pin}")
+    except Exception as e:
+        print(f"❌ Failed to initialize GPIO {pin}: {e}")
 
-try:
-    print("Starting Servo Test...")
-    test_sweep(servo0, "Servo 0 (Pin 12)")
-    test_sweep(servo1, "Servo 1 (Pin 13)")
-    print("Test Complete!")
+def sweep_test():
+    try:
+        while True:
+            for i, s in enumerate(servos):
+                pin_num = PINS[i]
+                print(f"\nTesting Servo on Pin {pin_num}")
+                
+                print("  Moving to MIN...")
+                s.min()
+                sleep(0.8)
+                
+                print("  Moving to MAX...")
+                s.max()
+                sleep(0.8)
+                
+                print("  Centering...")
+                s.mid()
+                sleep(0.5)
+                
+            print("\n--- Cycle Complete. Restarting in 2s... ---")
+            sleep(2)
 
 except KeyboardInterrupt:
-    print("\nTest stopped by user.")
-
+    print("\nStopping tests...")
 finally:
-    # Cleanup
-    servo0.value = None
-    servo1.value = None
+    # Release the pins
+    for s in servos:
+        s.value = None
+    print("Cleanup complete.")
+
+if __name__ == "__main__":
+    sweep_test()

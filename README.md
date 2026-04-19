@@ -162,6 +162,7 @@ KIDA uses the V2 robot Hat from the [Freenove Tank Robot](https://github.com/Fre
 |-------------|----------|
 | Servo0 | 12       |
 | Servo1    | 13       |
+| Servo1    | 19       |
 
 ---
 
