@@ -224,8 +224,17 @@ KIDA uses the V2 robot Hat from the [Freenove Tank Robot](https://github.com/Fre
 ### RIFT Integration
 To connect via [RIFT](https://github.com/CursedPrograms/RIFT), ensure KIDA01 is active on:
 * `localhost:5003`
+- Opening this address in any web browser on the same network, will also launch the **HTML Remote Controller** for manual overrides.
+
 
 </details>
+
+---
+
+<div align="center">
+  <img src="images/screenshot.png" alt="KIDA Robot" width="600"/>
+</div>
+<br>
 
 ---
 
