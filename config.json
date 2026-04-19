@@ -2,21 +2,20 @@
   "AppName": "KIDA",
   "Version": "0.0.1",
   "Description": "Autonomous robotic control system with UI, AI, and remote interface",
-
   "EntryPoints": {
     "Main": "main.py",
-    "UI": "ui.py",
-    "Line Follower": "ui.py",
-    "Obstacle Avoidance": "ui.py",
+    "UI": "scripts/ui.py",
+    "Line Follower": "scripts/line_follower.py",
+    "Obstacle Avoidance": "scripts/obstacle_avoidance.py",
     "Setup": "scripts/install-dependencies.py"
   },
-
   "Paths": {
     "Base": ".",
     "Scripts": "scripts/",
+    "Test Scripts": "scripts/tests",
     "Assets": "assets/",
     "Audio": "audio/",
-    "Audio": "audio/music",
+    "Music": "audio/music",
     "Images": "images/",
     "Videos": "videos/",
     "Photos": "photos/"
