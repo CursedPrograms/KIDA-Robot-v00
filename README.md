@@ -61,9 +61,6 @@ Use the numeric keys to hot-swap between drive logics:
 | <kbd>D</kbd> | Rotate Right | — |
 | <kbd>X</kbd> | Speed Control | Speed Control |
 | <kbd>TAB</kbd> | Cycle Modes | Cycle Modes |
-| <kbd>1</kbd> | — | Mode 1 |
-| <kbd>2</kbd> | Mode 2 | — |
-
 
 ### 🎵 Media & System
 * <kbd>M</kbd> **Play Music**
