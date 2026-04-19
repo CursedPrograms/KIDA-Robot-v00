@@ -53,11 +53,16 @@ Use the numeric keys to hot-swap between drive logics:
 
 | Input | **Mode 1: Coordinated** | **Mode 2: Independent** |
 | :--- | :--- | :--- |
-| <kbd>Q</kbd> | — | **Left Bank Forward** |
-| <kbd>A</kbd> | Rotate Left | **Left Bank Backward** |
-| <kbd>W</kbd> | Move Forward | **Right Bank Forward** |
-| <kbd>S</kbd> | Move Backward | **Right Bank Backward** |
+| <kbd>Q</kbd> | — | Left Bank Forward |
+| <kbd>A</kbd> | Rotate Left | Left Bank Backward |
+| <kbd>W</kbd> | Move Forward | Right Bank Forward |
+| <kbd>S</kbd> | Move Backward | Right Bank Backward |
 | <kbd>D</kbd> | Rotate Right | — |
+| <kbd>X</kbd> | Speed Control | Speed Control |
+| <kbd>TAB</kbd> | Cycle Modes | Cycle Modes |
+| <kbd>1</kbd> | — | Mode 1 |
+| <kbd>2</kbd> | Mode 2 | — |
+
 
 ### 🎵 Media & System
 * <kbd>M</kbd> **Play Music**
