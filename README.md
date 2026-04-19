@@ -241,74 +241,53 @@ pip install -r requirements.txt
 
 </details>
 
-### Run run.py to run KIDA
+## How to run:
+
+<details>
+<summary><b>How to run:</b></summary>
+
+1. Standard Execution
+- Run the main application using the Python interpreter:
 
 ```bash
 python run.py
 ```
 
-```bash
-sudo apt update
-sudo apt install hostapd dnsmasq -y
-```
+2. Using Shell Scripts
+- If you prefer using shell scripts, first ensure the files have the necessary execution permissions:
 
 ```bash
-sudo systemctl stop hostapd
-sudo systemctl stop dnsmasq
+chmod +x make_executables.sh
 ```
 
-```bash
-sudo nano /etc/dhcpcd.conf
-```
-```bash
-sudo nano /etc/hostapd/hostapd.conf
-```
+- To launch the main environment:
 
 ```bash
-interface=wlan0
-driver=nl80211
-ssid=KIDAv00
-hw_mode=g
-channel=7
-wmm_enabled=0
-macaddr_acl=0
-auth_algs=1
-ignore_broadcast_ssid=0
+./run.sh
 ```
 
-```bash
-wpa=2
-wpa_passphrase=12345678
-wpa_key_mgmt=WPA-PSK
-rsn_pairwise=CCMP
-```
-```bash
-sudo nano /etc/default/hostapd
-```
-#DAEMON_CONF=""
+#### 🤖 Autonomous Behaviors
+- To execute a single autonomous behavior, run the corresponding script:
+
+#### Line Follower:
 
 ```bash
-DAEMON_CONF="/etc/hostapd/hostapd.conf"
+run_linefollower.sh
 ```
 
-```bash
-sudo mv /etc/dnsmasq.conf /etc/dnsmasq.conf.bak
-```
+#### Obstacle Detection:
 
 ```bash
-sudo nano /etc/dnsmasq.conf
+run_obstacle_detection.sh
 ```
 
-```bash
-interface=wlan0
-dhcp-range=192.168.4.2,192.168.4.50,255.255.255.0,24h
-```
+*Note:* You can also just double click on any *.sh
 
-```bash
-sudo systemctl unmask hostapd
-sudo systemctl enable hostapd
-sudo systemctl enable dnsmasq
-```
+> [!IMPORTANT]
+> Ensure you have granted permissions via chmod before attempting to run the .sh files for the first time.
+
+
+</details>
 
 <br>
 <div align="center">
