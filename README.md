@@ -155,13 +155,22 @@ KIDA uses the V2 robot Hat from the [Freenove Tank Robot](https://github.com/Fre
 
 ---
 
+## Servos
+
+| Signal       | GPIO Pin |
+|-------------|----------|
+| Servo0 | 12       |
+| Servo1    | 13       |
+
+---
+
 ## Infrared Sensors
 
 | Sensor | GPIO Pin |
 |--------|----------|
-| IR01   | 16       |
-| IR02   | 26       |
-| IR03   | 21       |
+| IR01   | 16  (IR01) |
+| IR02   | 26  (IR02) |
+| IR03   | 21  (IR03) |
 
 ---
 
@@ -171,15 +180,15 @@ KIDA uses the V2 robot Hat from the [Freenove Tank Robot](https://github.com/Fre
 
 | Signal | GPIO Pin |
 |--------|----------|
-| IN1    | 24       |
-| IN2    | 23       |
+| IN1    | 23 (M1+) |
+| IN2    | 24 (M1-) |
 
 **Right Motor:**
 
 | Signal | GPIO Pin |
 |--------|----------|
-| IN1    | 5        |
-| IN2    | 6        |
+| IN1    | 6  (M2+) |
+| IN2    | 5  (M2-) |
 
 </details>
 
