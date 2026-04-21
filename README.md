@@ -61,11 +61,12 @@ Use the numeric keys to hot-swap between drive logics:
 | <kbd>D</kbd> | Rotate Right | — |
 | <kbd>X</kbd> | Speed Control | Speed Control |
 | <kbd>TAB</kbd> | Cycle Modes | Cycle Modes |
+| <kbd>U</kbd> | User Cotrol Mode | User Cotrol Mode |
+| <kbd>O</kbd> | Autonomous Mode | Autonomous Mode |
+| <kbd>L</kbd> | Line Follower Mode | Line Follower Mode |
 | <kbd>C</kbd> | Take Photo | Take Photo |
 | <kbd>V</kbd> | Take Video | Take Video |
-| <kbd>U</kbd> | User Cotrol Mode | User Cotrol Mode |
-| <kbd>U</kbd> | Autonomous Mode | Autonomous Mode |
-| <kbd>L</kbd> | Line Follower Mode | Line Follower Mode |
+
 
 ### 🎵 Media & System
 * <kbd>M</kbd> **Play Music**
