@@ -2,6 +2,9 @@ from deepface import DeepFace
 from PIL import Image, ImageDraw, ImageFont
 import os
 import json
+from picamera2 import Picamera2
+
+# Run Realtime with PiCamera
 
 def extract_gender_and_age(input_image_path, output_directory):
     try:
