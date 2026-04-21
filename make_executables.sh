@@ -8,7 +8,7 @@ FILES=(
     "freeze_requirements.sh"
     "run.sh"
     "setup.sh"
-    "server.sh"
+    "led_test.sh"
     "line_test.sh"
     "linefollower.sh"
     "ultrasonic_sensor_test.sh"
