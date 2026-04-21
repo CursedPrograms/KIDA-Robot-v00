@@ -42,7 +42,7 @@ from shared_state      import (
     _face_results, _face_lock,
     _face_frame_q, _face_enabled, _deepface_ok,
 )
-from flask_server      import run_flask, shutdown_zeroconf
+from scripts.server    import run_flask, shutdown_zeroconf
 from system_monitor    import start_stats_thread, get_local_ip
 from face_detector     import start_face_thread
 from camera_utils      import cam_to_surface, make_qr

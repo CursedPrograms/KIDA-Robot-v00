@@ -8,10 +8,16 @@ FILES=(
     "freeze_requirements.sh"
     "run.sh"
     "setup.sh"
-    "run_server.sh"
-    "run_linefollower.sh"
-    "run_obstacle_detection.sh"
+    "server.sh"
+    "line_test.sh"
+    "linefollower.sh"
+    "ultrasonic_sensor_test.sh"
+    "obstacle_avoidance.sh"
+    "servo_test.sh"
     "clear_commits.sh"
+    "filetree.sh"
+    "activate_environment.sh"
+    "app_test.sh"
 )
 
 for file in "${FILES[@]}"; do
