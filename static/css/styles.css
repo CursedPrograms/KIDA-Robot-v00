@@ -312,6 +312,107 @@ body::after {
 #face-btns         { display: flex; gap: 6px; }
 #face-btns .btn    { flex: 1; height: 40px; }
 
+/* ── Tank control ───────────────────────────────────────────────────────────── */
+#tank-wrap {
+  display: none;
+  grid-template-columns: repeat(3, 60px);
+  grid-template-rows: repeat(3, 60px);
+  gap: 5px; margin: 0 auto 14px; width: fit-content;
+}
+.tank-btn {
+  width: 60px; height: 60px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 1px;
+  border: 1px solid var(--border); border-radius: var(--rad);
+  background: var(--panel2); cursor: pointer; transition: all 0.1s;
+  -webkit-tap-highlight-color: transparent; touch-action: none;
+}
+.tank-btn:hover               { border-color: var(--teal); background: rgba(20,200,160,0.10); }
+.tank-btn:active, .tank-btn.pressed { border-color: var(--teal); background: rgba(20,200,160,0.18); transform: scale(0.93); }
+.tank-btn.stop-btn            { border-color: var(--red); color: var(--red); }
+.tank-btn.stop-btn:hover      { background: rgba(226,75,74,0.15); }
+.tk-side  { font-size: 9px; color: var(--teal); letter-spacing: 1px; line-height: 1; }
+.tk-glyph { font-size: 20px; line-height: 1; }
+
+/* ── Teal button variant ─────────────────────────────────────────────────────── */
+.btn.teal         { border-color: var(--teal); color: var(--teal); background: rgba(20,200,160,0.08); }
+.btn.teal:hover   { filter: brightness(1.2); }
+.btn.teal:disabled{ opacity: 0.4; cursor: default; filter: none; }
+.sec-label.teal::before { background: var(--teal); }
+
+/* ── Pink (dance) button variant ─────────────────────────────────────────────── */
+.btn.pink         { border-color: var(--accent); color: var(--accent); background: rgba(255,30,100,0.08); }
+.btn.pink:hover   { filter: brightness(1.2); }
+.btn.pink.active  { box-shadow: 0 3px 0 var(--accent) inset; background: rgba(255,30,100,0.16); }
+.sec-label.pink::before { background: var(--accent); }
+
+/* ── Amber (sleep) button variant ────────────────────────────────────────────── */
+.btn.amber        { border-color: var(--amber); color: var(--amber); background: rgba(255,160,40,0.08); }
+.btn.amber:hover  { filter: brightness(1.2); }
+.btn.amber.active { box-shadow: 0 3px 0 var(--amber) inset; background: rgba(255,160,40,0.16); }
+.sec-label.amber::before { background: var(--amber); }
+
+/* ── Dance / Sleep / QR guide button rows ────────────────────────────────────── */
+#dance-btns      { display: flex; gap: 6px; margin-bottom: 10px; }
+#dance-btns .btn { flex: 1; height: 40px; }
+#sleep-btns      { display: flex; gap: 6px; margin-bottom: 10px; }
+#sleep-btns .btn { flex: 1; height: 40px; }
+#qr-guide-row    { margin-bottom: 6px; }
+#qr-guide-row .btn { height: 38px; text-decoration: none; }
+
+/* ── Light paint overlay ─────────────────────────────────────────────────────── */
+#lp-overlay {
+  position: absolute; inset: 0; display: none;
+  flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  background: rgba(0,0,0,0.78); pointer-events: none;
+}
+#lp-overlay.show { display: flex; }
+#lp-msg  { font-family: var(--font-hud); font-size: 16px; letter-spacing: 3px; color: var(--teal); }
+#lp-sub  { font-size: 12px; color: var(--sec); }
+#lp-prog-wrap {
+  width: 60%; height: 6px; border-radius: 3px;
+  background: rgba(20,200,160,0.15); overflow: hidden;
+}
+#lp-prog-bar {
+  height: 100%; width: 0%; border-radius: 3px;
+  background: var(--teal); transition: width 0.4s ease;
+}
+#lp-btns { display: flex; gap: 5px; margin-bottom: 6px; }
+#lp-btns .btn { flex: 1; height: 38px; }
+#lp-result { font-size: 11px; color: var(--teal); min-height: 16px; margin-bottom: 8px; }
+
+/* ── QR drive tab ────────────────────────────────────────────────────────────── */
+.tab.qr-tab:hover  { border-color: var(--amber); color: var(--amber); background: rgba(255,160,40,0.08); }
+.tab.qr-tab.active {
+  border-color: var(--amber); color: var(--amber);
+  background: rgba(255,160,40,0.08); box-shadow: 0 2px 0 var(--amber);
+}
+
+/* ── QR drive camera overlay ─────────────────────────────────────────────────── */
+#qr-mode-overlay {
+  position: absolute; inset: 0; display: none;
+  flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  pointer-events: none; background: rgba(0,0,0,0.18);
+}
+#qr-mode-overlay.show { display: flex; }
+
+#qr-action-badge {
+  font-family: var(--font-hud); font-size: 20px; letter-spacing: 3px;
+  color: var(--amber); background: rgba(0,0,0,0.85);
+  padding: 8px 22px; border-radius: 6px;
+  border: 1px solid rgba(255,160,40,0.5);
+  opacity: 0; transition: opacity 0.18s;
+}
+#qr-action-badge.visible { opacity: 1; }
+
+#qr-scan-text {
+  font-family: var(--font-hud); font-size: 11px; letter-spacing: 2px;
+  color: var(--amber); background: rgba(0,0,0,0.72);
+  padding: 3px 14px; border-radius: 3px;
+  border: 1px solid rgba(255,160,40,0.3);
+  animation: pulse 2s infinite;
+}
+
 /* ── Animations ─────────────────────────────────────────────────────────────── */
 @keyframes pulse    { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
 @keyframes scanMove { 0%{top:0%} 100%{top:100%} }

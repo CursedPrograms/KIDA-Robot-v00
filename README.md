@@ -32,11 +32,18 @@
 KIDA v00 is the foundational entry in the Kinetic series, built on the Raspberry Pi 3 Model B. v00 is a versatile teleoperated and autonomous scout designed for robust remote monitoring and computer vision tasks.
 
 Core Features
-- [x] Multi-Protocol Control: Seamless operation via Web Interface, VNC, or direct Remote Control.
-- [x] Live Surveillance: High-definition video streaming with on-demand image and video capture.
-- [x] Biometric Inference: Edge-based vision processing for real-time Gender and Age detection.
-- [x] Reactive Autonomy: Integrated Ultrasonic obstacle avoidance and high-contrast line-following logic.
-- [x] Visual Feedback: Customizable RGB lighting for status signaling and environmental illumination.
+- [x] Multi-Protocol Control: Web interface (Flask :5003), VNC, or direct keyboard control.
+- [x] Live Camera Feed: MJPEG stream with photo capture and H264 video recording; files auto-download to the browser.
+- [x] Always-On Face Analysis: DeepFace gender/age detection runs in a background thread during every mode — not a separate mode.
+- [x] Reactive Autonomy: Ultrasonic obstacle avoidance and 3-channel infrared line follower.
+- [x] QR Drive Mode: Point printed QR codes at the camera to drive, play music, switch modes, trigger light painting, dance, sleep, and more.
+- [x] Dance Mode: Press the DANCE button or scan the DANCE QR code — KIDA plays music and performs a 20-step choreography (march, spins, moonwalk, finale) with HSV LED effects. Motors and LEDs are owned exclusively by the dance thread.
+- [x] Sleep Mode: Low-power idle with amber LED breathing, camera suspended, face detection paused. Any key or QR code wakes it.
+- [x] Light Painting: Long-exposure single-frame capture (5 / 10 / 20 s) with LED lockout; progress shown on screen and in the web UI.
+- [x] Real Audio Waveform: `AudioAnalyzer` reads the current MP3 with pydub and streams RMS amplitude bars to the web UI via `/audio_amps` — no more fake sine wave.
+- [x] WS2812 LED Strip (8 LEDs over SPI): Colour-coded direction feedback, rhythm pulse during music, amber breathing during sleep, HSV chase during dance.
+- [x] Tank Control Scheme: Independent left/right motor control via QA / WS keys or the on-screen tank pad.
+- [x] RIFT Integration: Zeroconf peer discovery; detects any service on `localhost:5000`.
 
 </details>
 
@@ -45,48 +52,137 @@ Core Features
 <details>
 <summary><b>Keybindings</b></summary>
 
-### ⚙️ Mode Selection
-Use the numeric keys to hot-swap between drive logics:
-* <kbd>1</kbd> **Switch to Mode 1** (Standard WASD Vectoring)
-* <kbd>2</kbd> **Switch to Mode 2** (Independent Tank-Style Control)
+### ⚙️ Control Scheme
+* <kbd>1</kbd> **WASD mode** — coordinated steering
+* <kbd>2</kbd> **Tank mode** — independent left / right motor control
 
 ### 🏎️ Movement Controls
 
-| Input | **Mode 1: Coordinated** | **Mode 2: Independent** |
+| Input | **Mode 1: WASD** | **Mode 2: Tank** |
 | :--- | :--- | :--- |
-| <kbd>Q</kbd> | — | Left Bank Forward |
-| <kbd>A</kbd> | Rotate Left | Left Bank Backward |
-| <kbd>W</kbd> | Move Forward | Right Bank Forward |
-| <kbd>S</kbd> | Move Backward | Right Bank Backward |
-| <kbd>D</kbd> | Rotate Right | — |
-| <kbd>X</kbd> | Speed Control | Speed Control |
+| <kbd>Q</kbd> | — | Left motor forward |
+| <kbd>A</kbd> | Rotate left | Left motor backward |
+| <kbd>W</kbd> | Move forward | Right motor forward |
+| <kbd>S</kbd> | Move backward | Right motor backward |
+| <kbd>D</kbd> | Rotate right | — |
+| <kbd>X</kbd> | Cycle speed (0.4 → 0.6 → 0.8 → 1.0) | Same |
 
-### 🏎️ Mode Controls
+### 🤖 Mode Controls
 
-| Input | :--- | 
-| :--- | :--- | 
-| <kbd>TAB</kbd> | Cycle Modes | Cycle Modes |
-| <kbd>U</kbd> | User Cotrol Mode | User Cotrol Mode |
-| <kbd>O</kbd> | Autonomous Mode | Autonomous Mode |
-| <kbd>L</kbd> | Line Follower Mode | Line Follower Mode |
-
+| Input | Action |
+| :--- | :--- |
+| <kbd>TAB</kbd> | Cycle USER → AUTONOMOUS → LINE |
+| <kbd>U</kbd> | User control mode |
+| <kbd>O</kbd> | Autonomous obstacle-avoid mode |
+| <kbd>L</kbd> | Line follower mode |
 
 ### 📷 Camera Controls
 
-| Input | :--- | 
-| :--- | :--- | 
-| <kbd>C</kbd> | Take Photo |
-| <kbd>V</kbd> | Take Video | 
+| Input | Action |
+| :--- | :--- |
+| <kbd>C</kbd> | Take photo (auto-downloads to browser) |
+| <kbd>V</kbd> | Toggle video recording |
 
+### 🎵 Media
 
-### 🎵 Media & System
-* <kbd>M</kbd> **Play Music**
-* <kbd>Space</kbd> **Stop Music** / Audio Interrupt
+| Input | Action |
+| :--- | :--- |
+| <kbd>M</kbd> | Play music |
+| <kbd>Space</kbd> | Stop music |
+
+### 💃 Dance & Sleep (web UI / QR / keyboard)
+
+| Input | Action |
+| :--- | :--- |
+| <kbd>N</kbd> | Toggle dance mode |
+| <kbd>P</kbd> | Toggle sleep mode |
+| Any key (while sleeping) | Wake KIDA |
 
 </details>
 
 > [!TIP]
 > Use **Mode 2** for heavy terrain or precise pivoting, and **Mode 1** for smooth, cinematic strafing.
+
+---
+
+## 📷 QR Drive Mode
+
+<details>
+<summary><b>QR Drive Mode — all codes and usage</b></summary>
+
+Switch KIDA to **QR DRIVE** mode (tab in the web UI or `setMode('QR')`), then hold printed QR codes in front of the camera.
+
+Generate printable PNG cards for all codes:
+```bash
+python generate_qr_codes.py          # saves to ./qrcodes/
+python generate_qr_codes.py ./my/dir # custom output directory
+```
+Or open `http://<kida-ip>:5003/qr_codes` in a browser and print the page directly.
+
+### HOLD actions — robot acts **while the QR code is visible**
+
+| QR Code | Action |
+| :--- | :--- |
+| `KIDA:forward` | Drive forward |
+| `KIDA:backward` | Drive backward |
+| `KIDA:left` | Turn left |
+| `KIDA:right` | Turn right |
+
+### ONE-SHOT actions — fire **once per new detection**
+
+| QR Code | Action |
+| :--- | :--- |
+| `KIDA:play_music` | Start playing music |
+| `KIDA:stop_music` | Stop music |
+| `KIDA:next_song` | Skip to next track |
+| `KIDA:mode_user` | Exit QR mode → USER control |
+| `KIDA:mode_autonomous` | Exit QR mode → obstacle-avoid |
+| `KIDA:mode_line` | Exit QR mode → line follower |
+| `KIDA:light_paint` | Trigger 10 s long-exposure shot |
+| `KIDA:dance` | Toggle dance mode |
+| `KIDA:sleep` | Enter sleep mode |
+| `KIDA:wake` | Wake from sleep |
+| `KIDA:stop` | Emergency stop |
+
+QR decoding priority: **pyzbar** (faster) → **OpenCV QRCodeDetector** (fallback).
+
+</details>
+
+---
+
+## 💃 Dance Mode
+
+<details>
+<summary><b>Dance Mode</b></summary>
+
+Press the **♫ DANCE** button in the web UI, scan `KIDA:dance`, or press <kbd>N</kbd>.
+
+- Music starts automatically.
+- A 20-step choreography thread takes exclusive ownership of motors and LEDs.
+- Sequence includes: march, side-shake, spin-out, charge-and-retreat, wiggle, moonwalk, and a finale spin.
+- LED effects: HSV chase during spins, rainbow sweep during forward/backward, gentle breathe during stops.
+- Dance auto-stops when the song ends.
+- Main loop is completely hands-off while dance is active — user inputs and drive modes are suspended.
+
+</details>
+
+---
+
+## 💤 Sleep Mode
+
+<details>
+<summary><b>Sleep Mode</b></summary>
+
+Press the **💤 SLEEP** button in the web UI, scan `KIDA:sleep`, or press <kbd>P</kbd>.
+
+- Motors stop immediately.
+- Camera capture is suspended (saves CPU and battery).
+- Face detection is paused.
+- LEDs enter a slow **amber breathing** pattern (~0.25 Hz).
+- Raspberry Pi pygame screen shows a minimal dark overlay with a pulsing KIDA logo.
+- Wake: press **☀ WAKE** in the web UI, scan `KIDA:wake`, or press **any key** on a connected keyboard.
+
+</details>
 
 ---
 

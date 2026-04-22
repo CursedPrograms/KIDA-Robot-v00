@@ -13,7 +13,10 @@ Scheme 2 (QA/WS)  — press 2 to activate
 Speed — press X to cycle through [0.4, 0.6, 0.8, 1.0]
 """
 
+import io
+import json
 import logging
+import math
 import os
 import queue
 import threading
@@ -41,10 +44,22 @@ from shared_state      import (
     _system_stats, _stats_lock,
     _face_results, _face_lock,
     _face_frame_q, _face_enabled, _deepface_ok,
+    _cam_jpeg, _cam_jpeg_lock,
+    _cam_lock,
+    _light_paint_state, _light_paint_lock,
+    _media_state, _media_lock,
+    _qr_state, _qr_lock,
+    _qr_frame_q, _qr_enabled,
+    _dance_active,
+    _sleep_active,
+    _audio_amps, _audio_amps_lock,
 )
-from scripts.server    import run_flask, shutdown_zeroconf
+from server            import run_flask, shutdown_zeroconf
 from system_monitor    import start_stats_thread, get_local_ip
 from face_detector     import start_face_thread
+from qr_reader         import start_qr_thread
+from dance             import start_dance
+from sleep             import sleep_breathe, render_sleep_screen
 from camera_utils      import cam_to_surface, make_qr
 from render_helpers    import (
     hline, vline,
@@ -61,13 +76,78 @@ logging.basicConfig(
 )
 logger = logging.getLogger("kida.main")
 
+_BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+try:
+    with open(os.path.join(_BASE, "config.json")) as _f:
+        _config = json.load(_f)
+    _CAM_ROTATION = int(_config.get("Config", {}).get("Settings", {}).get("Camera Rotation", "0"))
+except Exception:
+    _CAM_ROTATION = 0
+
+
+_CAM_NATIVE_W, _CAM_NATIVE_H = 320, 240
+
+
+def _do_light_paint(cam, duration: int, photos_dir: str) -> None:
+    """Run a long-exposure still capture then restore the preview stream."""
+    fname = os.path.join(photos_dir, f"lp_{int(time.time())}.jpg")
+    with _cam_lock:
+        with _light_paint_lock:
+            _light_paint_state.update({"active": True, "progress": 0.0})
+        done = [False]
+        start_t = [0.0]
+
+        def _progress_ticker():
+            while not done[0]:
+                elapsed = time.time() - start_t[0]
+                pct = min(0.1 + elapsed / max(duration, 1) * 0.88, 0.98)
+                with _light_paint_lock:
+                    _light_paint_state["progress"] = round(pct, 3)
+                time.sleep(0.25)
+
+        try:
+            cam.stop()
+            cam.configure(cam.create_still_configuration())
+            cam.start()
+            cam.set_controls({
+                "ExposureTime": int(duration * 1_000_000),
+                "AeEnable": False,
+                "AnalogueGain": 1.0,
+                "AwbEnable": False,
+            })
+            time.sleep(2)   # let controls settle
+            start_t[0] = time.time()
+            ticker = threading.Thread(target=_progress_ticker, daemon=True)
+            ticker.start()
+            cam.capture_file(fname)
+        except Exception as e:
+            logger.error("Light paint capture: %s", e)
+            fname = ""
+        finally:
+            done[0] = True
+            try:
+                cam.stop()
+                cam.configure(cam.create_preview_configuration(
+                    main={"size": (_CAM_NATIVE_W, _CAM_NATIVE_H)},
+                    transform=__import__("libcamera").Transform(hflip=1, vflip=1),
+                ))
+                cam.start()
+            except Exception as e:
+                logger.error("Light paint restore: %s", e)
+            with _light_paint_lock:
+                _light_paint_state.update({
+                    "pending": False, "active": False,
+                    "progress": 1.0,
+                    "last_file": os.path.basename(fname) if fname else "",
+                })
+
 
 # ── Command processor ──────────────────────────────────────────────────────────
 _MODE_MAP = {
     "_mode_user":       Mode.USER,
     "_mode_autonomous": Mode.AUTONOMOUS,
     "_mode_line":       Mode.LINE,
-    "_mode_face":       Mode.FACE,
+    # FACE is not a selectable mode — face scanning always runs
 }
 
 
@@ -109,6 +189,18 @@ def _make_command_processor(motors, set_led, take_photo, toggle_video,
             motors.turn_right(state["speed"]); set_led((255, 255, 0)); state["direction"] = "RIGHT"
         elif cmd == "stop":
             motors.stop();                     set_led((0, 0, 0));     state["direction"] = "STOPPED"
+        elif cmd == "tank_left_fwd":
+            motors.left.forward(state["speed"])
+        elif cmd == "tank_left_bwd":
+            motors.left.backward(state["speed"])
+        elif cmd == "tank_left_stop":
+            motors.left.stop()
+        elif cmd == "tank_right_fwd":
+            motors.right.forward(state["speed"])
+        elif cmd == "tank_right_bwd":
+            motors.right.backward(state["speed"])
+        elif cmd == "tank_right_stop":
+            motors.right.stop()
         elif cmd == "photo":
             take_photo()
         elif cmd in ("video", "video_start"):
@@ -159,7 +251,7 @@ def main() -> None:
     CAM_W = int(CAM_AVAIL_W * 0.82);  CAM_H = int(CAM_AVAIL_H * 0.60)
     CAM_X = L_W + (CAM_AVAIL_W - CAM_W) // 2
     CAM_Y = TOP_H + TAB_H + PAD
-    CAM_NATIVE_W, CAM_NATIVE_H = 320, 240
+    CAM_NATIVE_W, CAM_NATIVE_H = _CAM_NATIVE_W, _CAM_NATIVE_H
 
     # ── Fonts ──────────────────────────────────────────────────────────────────
     fmono_xl = pygame.font.SysFont("Courier New", 34, bold=True)
@@ -175,9 +267,10 @@ def main() -> None:
     threading.Thread(target=run_flask,  daemon=True).start()
     start_stats_thread()
     start_face_thread()
+    start_qr_thread()
 
     # ── Hardware ───────────────────────────────────────────────────────────────
-    music  = MusicPlayer("/home/nova/Desktop/kida/audio/music/")
+    music  = MusicPlayer(os.path.join(_BASE, "audio", "music"))
     motors = MotorController()
 
     try:    avoider = ObstacleAvoidance(motors=motors)
@@ -204,9 +297,9 @@ def main() -> None:
 
     local_ip   = get_local_ip()
     qr_surf    = make_qr(f"http://{local_ip}:5003", size=130)
-    photos_dir = "../kida/photos"
-    videos_dir = "../kida/videos"
-    face_dir   = "../kida/faces"
+    photos_dir = os.path.join(_BASE, "photos")
+    videos_dir = os.path.join(_BASE, "videos")
+    face_dir   = os.path.join(_BASE, "faces")
     for d in (photos_dir, videos_dir, face_dir):
         os.makedirs(d, exist_ok=True)
 
@@ -232,24 +325,59 @@ def main() -> None:
     )
 
     # ── Action helpers ─────────────────────────────────────────────────────────
-    cam_pil = None  # updated each frame; used by face snapshot
+    cam_pil         = None   # latest PIL frame; used by face snapshot
+    _flash          = [0]    # frames remaining for white LED flash (photo)
+    _video_fname    = [""]   # path of the currently recording video
+    _qr_active      = [False]  # True while QR drive mode is active
+    _prev_qr_action = [""]     # last QR action seen (one-shot dedup)
+
+    # Dance
+    _dance_stop_evt  = threading.Event()
+    _dance_thread    = [None]
+
+    # Audio analyzer (created in background when track changes)
+    _last_track_name = [""]
+    _analyzer_box    = [None]   # holds AudioAnalyzer instance or None
+
+    def _load_analyzer_bg(path: str) -> None:
+        try:
+            _analyzer_box[0] = AudioAnalyzer(path, num_bars=24)
+            logger.info("AudioAnalyzer ready for: %s", os.path.basename(path))
+        except Exception as e:
+            logger.warning("AudioAnalyzer failed: %s", e)
+            _analyzer_box[0] = None
 
     def take_photo() -> None:
         fname = os.path.join(photos_dir, f"photo_{int(time.time())}.jpg")
-        try:    cam.capture_file(fname);  logger.info("Photo: %s", fname)
-        except Exception as e: logger.error("Photo failed: %s", e)
+        try:
+            cam.capture_file(fname)
+            _flash[0] = 10                                   # ~400 ms at 25 fps
+            with _media_lock:
+                _media_state["last_photo"] = os.path.basename(fname)
+            logger.info("Photo saved: %s", fname)
+        except Exception as e:
+            logger.error("Photo failed: %s", e)
 
     def toggle_video(vs: dict) -> None:
         if not vs["video_rec"]:
             fname = os.path.join(videos_dir, f"video_{int(time.time())}.mp4")
+            _video_fname[0] = fname
             try:
                 cam.start_encoder(_encoder, FfmpegOutput(fname))
-                vs["video_rec"] = True;  logger.info("Recording: %s", fname)
-            except Exception as e: logger.error("Video start failed: %s", e)
+                vs["video_rec"] = True
+                logger.info("Recording: %s", fname)
+            except Exception as e:
+                logger.error("Video start failed: %s", e)
         else:
-            try:    cam.stop_encoder()
-            except Exception as e: logger.error("Video stop failed: %s", e)
+            try:
+                cam.stop_encoder()
+            except Exception as e:
+                logger.error("Video stop failed: %s", e)
             vs["video_rec"] = False
+            if _video_fname[0]:
+                with _media_lock:
+                    _media_state["last_video"] = os.path.basename(_video_fname[0])
+                _video_fname[0] = ""
 
     def save_face_snapshot() -> None:
         nonlocal cam_pil
@@ -281,6 +409,78 @@ def main() -> None:
 
     def music_play():  ds["_music_play"]()
     def music_stop():  ds["_music_stop"]()
+
+    # ── QR drive mode helpers ──────────────────────────────────────────────────
+    _QR_HOLD = frozenset({"forward", "backward", "left", "right"})
+
+    def _fire_qr_oneshot(action: str) -> None:
+        """Execute a one-shot QR action. Called at most once per new QR code."""
+        if action == "play_music":
+            music_play()
+        elif action == "stop_music":
+            music_stop()
+        elif action == "next_song":
+            music.play_next()
+        elif action == "light_paint":
+            with _light_paint_lock:
+                if not _light_paint_state["active"]:
+                    _light_paint_state.update({
+                        "pending": True, "duration": 10,
+                        "progress": 0.0, "last_file": "",
+                    })
+        elif action == "stop":
+            motors.stop();  ds["direction"] = "STOPPED"
+            if ds["video_rec"]:
+                toggle_video(ds)
+        elif action == "dance":
+            stop_dance_mode() if _dance_active.is_set() else start_dance_mode()
+        elif action == "sleep":
+            enter_sleep()
+        elif action == "wake":
+            exit_sleep()
+        elif action == "mode_user":
+            _qr_active[0] = False;  _qr_enabled.clear()
+            with _qr_lock: _qr_state["action"] = ""
+            ds["mode"] = switch_mode(ds["mode"], Mode.USER, ctx)
+        elif action == "mode_autonomous":
+            _qr_active[0] = False;  _qr_enabled.clear()
+            with _qr_lock: _qr_state["action"] = ""
+            ds["mode"] = switch_mode(ds["mode"], Mode.AUTONOMOUS, ctx)
+        elif action == "mode_line":
+            _qr_active[0] = False;  _qr_enabled.clear()
+            with _qr_lock: _qr_state["action"] = ""
+            ds["mode"] = switch_mode(ds["mode"], Mode.LINE, ctx)
+
+    # ── Dance / sleep helpers ──────────────────────────────────────────────────
+    def start_dance_mode() -> None:
+        if _dance_active.is_set():
+            return
+        music_play()
+        _dance_active.set()
+        _dance_thread[0] = start_dance(motors, led, _dance_stop_evt, ds["speed"])
+        logger.info("Dance mode started")
+
+    def stop_dance_mode() -> None:
+        if not _dance_active.is_set():
+            return
+        _dance_stop_evt.set()
+        _dance_active.clear()
+        logger.info("Dance mode stopped")
+
+    def enter_sleep() -> None:
+        if _sleep_active.is_set():
+            return
+        motors.stop();  ds["direction"] = "STOPPED"
+        _face_enabled.clear()
+        _sleep_active.set()
+        logger.info("Sleep mode entered")
+
+    def exit_sleep() -> None:
+        if not _sleep_active.is_set():
+            return
+        _sleep_active.clear()
+        _face_enabled.set()
+        logger.info("Sleep mode exited")
 
     # ── UI layout ──────────────────────────────────────────────────────────────
     TAB_LABELS = ["USER CTRL", "AUTONOMOUS", "LINE FOLLOW"]
@@ -325,15 +525,13 @@ def main() -> None:
 
     bg_surf = build_background(W, H, TOP_H, BOT_H, L_W, R_W)
 
-    # Face scanning runs in all modes — enable immediately
-    face_scan_active = True
+    # Face scanning is always on — enable now and never toggle
     _face_enabled.set()
 
     # ── Per-frame state ────────────────────────────────────────────────────────
     frame    = 0
     cam_surf = pygame.Surface((CAM_W, CAM_H));  cam_surf.fill((8, 10, 14))
     cam_tick = 0;  face_tick = 0
-    analyzer: AudioAnalyzer | None = None
 
     # ── Main loop ──────────────────────────────────────────────────────────────
     running = True
@@ -350,72 +548,112 @@ def main() -> None:
         ram_t    = st.get("ram_total", 1)
         ram_pct  = min(ram_u / max(ram_t, 1), 1.0)
 
-        # Camera frame
+        # Light paint — start if pending
+        with _light_paint_lock:
+            _lp_pending = _light_paint_state["pending"]
+            _lp_dur     = _light_paint_state["duration"]
+        if _lp_pending:
+            with _light_paint_lock:
+                _light_paint_state["pending"] = False
+            threading.Thread(
+                target=_do_light_paint, args=(cam, _lp_dur, photos_dir),
+                daemon=True, name="light-paint",
+            ).start()
+
+        # Camera frame — skip during sleep or while light paint holds the lock
         cam_tick += 1
-        if cam_tick >= 3:
+        if cam_tick >= 3 and not _sleep_active.is_set():
             cam_tick = 0
-            cam_surf, cam_pil = cam_to_surface(cam, CAM_W, CAM_H)
+            if _cam_lock.acquire(blocking=False):
+                try:
+                    cam_surf, cam_pil = cam_to_surface(cam, CAM_W, CAM_H, _CAM_ROTATION)
+                    if cam_pil is not None:
+                        buf = io.BytesIO()
+                        cam_pil.save(buf, "JPEG", quality=70)
+                        with _cam_jpeg_lock:
+                            _cam_jpeg[0] = buf.getvalue()
+                finally:
+                    _cam_lock.release()
 
-        # Feed face worker in all modes when scanning is active
-        if face_scan_active:
-            face_tick += 1
-            if face_tick >= 45 and cam_pil is not None:
-                face_tick = 0
-                try:    _face_frame_q.put_nowait(cam_pil.copy())
-                except queue.Full: pass
-        else:
+        # Feed face worker every ~45 frames (always-on face scanning)
+        face_tick += 1
+        if face_tick >= 45 and cam_pil is not None and not _sleep_active.is_set():
             face_tick = 0
+            try:    _face_frame_q.put_nowait(cam_pil.copy())
+            except queue.Full: pass
 
-        # Audio amplitudes
+        # Reload audio analyzer when track changes
+        if music.current_track != _last_track_name[0]:
+            _last_track_name[0] = music.current_track
+            _analyzer_box[0]    = None
+            with _robot_state_lock:
+                _robot_state["track_name"] = music.current_track
+            if music.playing and music.current_path:
+                threading.Thread(
+                    target=_load_analyzer_bg, args=(music.current_path,),
+                    daemon=True, name="audio-analyze",
+                ).start()
+
+        # Compute amplitudes from analyzer; share with web UI via shared_state
         amplitudes = None
-        if ds["music_playing"] and analyzer is not None:
+        _cur_analyzer = _analyzer_box[0]
+        if ds["music_playing"] and _cur_analyzer is not None:
             try:
-                amplitudes = analyzer.get_amplitudes(pygame.mixer.music.get_pos() / 1000.0)
+                amplitudes = _cur_analyzer.get_amplitudes(
+                    pygame.mixer.music.get_pos() / 1000.0)
+                with _audio_amps_lock:
+                    _audio_amps[:] = amplitudes
             except Exception:
                 pass
+        elif not ds["music_playing"]:
+            with _audio_amps_lock:
+                _audio_amps.clear()
 
         with _face_lock:
             face_snapshot = _face_results.copy()
         face_count = len(face_snapshot)
 
         # ── Render ─────────────────────────────────────────────────────────────
-        screen.blit(bg_surf, (0, 0))
+        if _sleep_active.is_set():
+            render_sleep_screen(screen, fmono_xl, fmono_sm, W, H, frame)
+        else:
+            screen.blit(bg_surf, (0, 0))
 
-        render_camera(screen, cam_surf, face_snapshot, frame, ds["video_rec"],
-                      ds["mode"], CAM_X, CAM_Y, CAM_W, CAM_H,
-                      CAM_NATIVE_W, CAM_NATIVE_H,
-                      fmono_sm, fmono_xs, _deepface_ok.is_set(), face_scan_active)
+            render_camera(screen, cam_surf, face_snapshot, frame, ds["video_rec"],
+                          ds["mode"], CAM_X, CAM_Y, CAM_W, CAM_H,
+                          CAM_NATIVE_W, CAM_NATIVE_H,
+                          fmono_sm, fmono_xs, _deepface_ok.is_set(), True)
 
-        render_info_strip(screen, ds["mode"], ds["direction"], ds["speed"],
-                          ds["ctrl_scheme"], led_color(), face_count,
-                          CAM_X, CAM_Y, CAM_H, fmono_xs, fmono_sm)
+            render_info_strip(screen, ds["mode"], ds["direction"], ds["speed"],
+                              ds["ctrl_scheme"], led_color(), face_count,
+                              CAM_X, CAM_Y, CAM_H, fmono_xs, fmono_sm)
 
-        hline(screen, TOP_H,     0, W)
-        hline(screen, H - BOT_H, 0, W)
-        vline(screen, L_W,       TOP_H, H - BOT_H)
-        vline(screen, W - R_W,   TOP_H, H - BOT_H)
+            hline(screen, TOP_H,     0, W)
+            hline(screen, H - BOT_H, 0, W)
+            vline(screen, L_W,       TOP_H, H - BOT_H)
+            vline(screen, W - R_W,   TOP_H, H - BOT_H)
 
-        render_top_bar(screen, ds["mode"], st.get("threads", 0), temp_c, st,
-                       led_color(), tabs, TAB_LABELS,
-                       W, TOP_H, fmono_xl, fmono_md, fmono_xs, fbody, mouse)
+            render_top_bar(screen, ds["mode"], st.get("threads", 0), temp_c, st,
+                           led_color(), tabs, TAB_LABELS,
+                           W, TOP_H, fmono_xl, fmono_md, fmono_xs, fbody, mouse)
 
-        render_left_panel(screen, qr_surf, local_ip, st,
-                          cpu_pct, temp_c, temp_pct, ram_u, ram_t, ram_pct,
-                          st.get("latency", "N/A"), st.get("threads", 0),
-                          st.get("disk_read", 0), st.get("disk_write", 0),
-                          st.get("boot_time", "--:--"),
-                          music, ds["music_playing"], frame, amplitudes,
-                          btn_play, btn_skip, mouse,
-                          lp_x, lp_w, TOP_H, PAD,
-                          fmono_md, fmono_sm, fmono_xs, fbody, flabel, flabel_s)
+            render_left_panel(screen, qr_surf, local_ip, st,
+                              cpu_pct, temp_c, temp_pct, ram_u, ram_t, ram_pct,
+                              st.get("latency", "N/A"), st.get("threads", 0),
+                              st.get("disk_read", 0), st.get("disk_write", 0),
+                              st.get("boot_time", "--:--"),
+                              music, ds["music_playing"], frame, amplitudes,
+                              btn_play, btn_skip, mouse,
+                              lp_x, lp_w, TOP_H, PAD,
+                              fmono_md, fmono_sm, fmono_xs, fbody, flabel, flabel_s)
 
-        render_right_panel(screen, ds["mode"], ds["direction"], ds["speed_idx"],
-                           ds["ctrl_scheme"], ds["video_rec"],
-                           dpad, DPAD_GLYPHS, spd_dots, sch_btns,
-                           btn_photo, btn_video, btn_face_snap, btn_face_scan,
-                           face_scan_active,
-                           rp_x, spd_y, sch_y, cap_y, TOP_H, PAD, mouse,
-                           fmono_md, fmono_xs, fbody, fdpad)
+            render_right_panel(screen, ds["mode"], ds["direction"], ds["speed_idx"],
+                               ds["ctrl_scheme"], ds["video_rec"],
+                               dpad, DPAD_GLYPHS, spd_dots, sch_btns,
+                               btn_photo, btn_video, btn_face_snap, btn_face_scan,
+                               True,
+                               rp_x, spd_y, sch_y, cap_y, TOP_H, PAD, mouse,
+                               fmono_md, fmono_xs, fbody, fdpad)
 
         render_bottom_bar(screen, ds["mode"], ds["ctrl_scheme"], ds["speed"],
                           face_count, frame, W, H, BOT_H, fmono_xs)
@@ -431,6 +669,9 @@ def main() -> None:
 
             elif event.type == pygame.KEYDOWN:
                 k = event.key
+                if _sleep_active.is_set():
+                    exit_sleep()   # any key wakes
+                    continue
                 if   k == pygame.K_ESCAPE:
                     running = False
                 elif k == pygame.K_TAB:
@@ -481,14 +722,6 @@ def main() -> None:
 
                 if btn_face_snap.collidepoint(event.pos):
                     save_face_snapshot()
-                if btn_face_scan.collidepoint(event.pos):
-                    face_scan_active = not face_scan_active
-                    if face_scan_active:
-                        _face_enabled.set()
-                    else:
-                        _face_enabled.clear()
-                        with _face_lock:
-                            _face_results.clear()
                 if btn_play.collidepoint(event.pos):
                     music_stop() if ds["music_playing"] else music_play()
                 if btn_skip.collidepoint(event.pos) and ds["music_playing"]:
@@ -496,12 +729,74 @@ def main() -> None:
 
         # Flask command queue
         while not command_queue.empty():
-            process_cmd(command_queue.get_nowait(), ctx)
+            cmd = command_queue.get_nowait()
+            if cmd == "dance_start":
+                start_dance_mode()
+            elif cmd == "dance_stop":
+                stop_dance_mode()
+            elif cmd == "sleep":
+                enter_sleep()
+            elif cmd == "wake":
+                exit_sleep()
+            elif cmd == "_mode_qr":
+                _qr_active[0] = True
+                _qr_enabled.set()
+                motors.stop();  ds["direction"] = "STOPPED"
+                with _robot_state_lock:
+                    _robot_state["mode"] = "QR"
+            else:
+                if _qr_active[0] and cmd.startswith("_mode_"):
+                    _qr_active[0] = False
+                    _qr_enabled.clear()
+                    with _qr_lock: _qr_state["action"] = ""
+                    _prev_qr_action[0] = ""
+                process_cmd(cmd, ctx)
 
         # ── Drive logic ─────────────────────────────────────────────────────────
-        mode = ds["mode"]
+        mode = None   # assigned below when not in a special mode
 
-        if mode == Mode.AUTONOMOUS:
+        # Auto-stop dance when song ends
+        if _dance_active.is_set() and not ds["music_playing"]:
+            stop_dance_mode()
+
+        if _dance_active.is_set():
+            # Dance thread owns motors + LEDs — main loop stays hands-off
+            with _robot_state_lock:
+                _robot_state["mode"] = "DANCE"
+
+        elif _sleep_active.is_set():
+            # Sleep: motors already stopped; LEDs handled after drive logic
+            with _robot_state_lock:
+                _robot_state["mode"] = "SLEEP"
+
+        elif _qr_active[0]:
+            # Feed latest PIL frame to QR reader
+            if cam_pil is not None:
+                try:    _qr_frame_q.put_nowait(cam_pil.copy())
+                except queue.Full: pass
+
+            with _qr_lock:
+                qr_action = _qr_state["action"]
+
+            if qr_action in _QR_HOLD:
+                if   qr_action == "forward":   motors.forward(ds["speed"]);    ds["direction"] = "FORWARD"
+                elif qr_action == "backward":  motors.backward(ds["speed"]);   ds["direction"] = "BACKWARD"
+                elif qr_action == "left":      motors.turn_left(ds["speed"]);  ds["direction"] = "LEFT"
+                elif qr_action == "right":     motors.turn_right(ds["speed"]); ds["direction"] = "RIGHT"
+            else:
+                if _prev_qr_action[0] in _QR_HOLD:
+                    motors.stop();  ds["direction"] = "STOPPED"
+                if qr_action and qr_action != _prev_qr_action[0]:
+                    _fire_qr_oneshot(qr_action)
+
+            _prev_qr_action[0] = qr_action
+            with _robot_state_lock:
+                _robot_state["mode"] = "QR"
+
+        else:
+            mode = ds["mode"]
+
+        if not _qr_active[0] and mode == Mode.AUTONOMOUS:
             if avoider:
                 try:
                     if avoider.check_and_avoid(): set_led((255, 0, 0))
@@ -533,10 +828,22 @@ def main() -> None:
                 elif right:         set_led((255, 165, 0))
                 else:               set_led((0, 0, 0))
 
-        if ds["music_playing"]:
+        # ── LED effects ─────────────────────────────────────────────────────────
+        # Dance thread owns LEDs while active; sleep has its own breathing effect
+        if _dance_active.is_set():
+            pass   # dance loop calls led.show() on its own thread
+        elif _sleep_active.is_set():
+            sleep_breathe(led, frame)
+        elif _flash[0] > 0:
+            led.set_all_led_color(255, 255, 255)
+            _flash[0] -= 1
+        elif ds["video_rec"]:
+            bright = int((math.sin(frame * 0.08) * 0.5 + 0.5) * 200 + 55)
+            led.set_all_led_color(bright, 0, 0)
+        elif ds["music_playing"]:
             led.rhythm_wave(frame)
-
-        led.show()
+        else:
+            led.show()
         frame += 1
         pygame.display.flip()
         clock.tick(25)
@@ -544,8 +851,13 @@ def main() -> None:
     # ── Cleanup ────────────────────────────────────────────────────────────────
     logger.info("Shutting down…")
     shutdown_zeroconf()
+    if _dance_active.is_set():
+        _dance_stop_evt.set()
+        _dance_active.clear()
+    _sleep_active.clear()
     switch_mode(ds["mode"], Mode.USER, ctx)
     _face_enabled.clear()
+    _qr_enabled.clear()
     if ds["video_rec"]:
         try: cam.stop_encoder()
         except Exception: pass

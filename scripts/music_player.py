@@ -98,6 +98,14 @@ class MusicPlayer:
     # ── Info ──────────────────────────────────────────────────
 
     @property
+    def current_path(self) -> str:
+        """Full filesystem path of the currently playing track, or ''."""
+        if not self._playlist or not self.playing:
+            return ""
+        idx = (self._index - 1) % len(self._playlist)
+        return self._playlist[idx]
+
+    @property
     def track_count(self) -> int:
         return len(self._playlist)
 

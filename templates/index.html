@@ -6,7 +6,7 @@
   <title>KIDA — Remote Control</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/css/styles.css">
 </head>
 <body>
 <div id="app">
@@ -18,7 +18,7 @@
       <button class="tab active"   onclick="setMode('USER')">USER CTRL</button>
       <button class="tab"          onclick="setMode('AUTONOMOUS')">AUTONOMOUS</button>
       <button class="tab"          onclick="setMode('LINE')">LINE FOLLOW</button>
-      <button class="tab face-tab" onclick="setMode('FACE')">👤 FACE SCAN</button>
+      <button class="tab qr-tab"   onclick="setMode('QR')">📷 QR DRIVE</button>
     </div>
     <div id="led-dots">
       <div class="led-dot" id="led0"></div>
@@ -96,7 +96,15 @@
         <div id="rec-badge"><div id="rec-dot"></div> REC</div>
         <div id="face-scan-overlay">
           <div id="scan-line"></div>
-          <div id="scan-label">FACE SCAN ACTIVE</div>
+        </div>
+        <div id="lp-overlay">
+          <div id="lp-msg">LIGHT PAINT</div>
+          <div id="lp-sub">Initialising…</div>
+          <div id="lp-prog-wrap"><div id="lp-prog-bar"></div></div>
+        </div>
+        <div id="qr-mode-overlay">
+          <div id="qr-action-badge"></div>
+          <div id="qr-scan-text">SCANNING FOR QR…</div>
         </div>
         <div id="mode-overlay"></div>
       </div>
@@ -118,13 +126,76 @@
   <aside id="right">
     <div class="panel-inner">
 
-      <div class="sec-label">DIRECTIONAL CONTROL</div>
+      <!-- Standard dpad (scheme 1 / WASD) -->
+      <div class="sec-label" id="ctrl-label">DIRECTIONAL CONTROL</div>
       <div id="dpad-wrap">
-        <div class="dp-btn" data-dir="forward"  onpointerdown="dpadDown('forward')"  onpointerup="dpadUp()">▲</div>
-        <div class="dp-btn" data-dir="left"     onpointerdown="dpadDown('left')"     onpointerup="dpadUp()">◀</div>
-        <div class="dp-btn stop-btn" data-dir="stop" onpointerdown="dpadDown('stop')" onpointerup="dpadUp()">■</div>
-        <div class="dp-btn" data-dir="right"    onpointerdown="dpadDown('right')"    onpointerup="dpadUp()">▶</div>
-        <div class="dp-btn" data-dir="backward" onpointerdown="dpadDown('backward')" onpointerup="dpadUp()">▼</div>
+        <div class="dp-btn" data-dir="forward"
+          onpointerdown="dpadDown('forward')"
+          onpointerup="dpadUp()" onpointerleave="dpadUp()" onpointercancel="dpadUp()">▲</div>
+        <div class="dp-btn" data-dir="left"
+          onpointerdown="dpadDown('left')"
+          onpointerup="dpadUp()" onpointerleave="dpadUp()" onpointercancel="dpadUp()">◀</div>
+        <div class="dp-btn stop-btn" data-dir="stop"
+          onpointerdown="dpadDown('stop')"
+          onpointerup="dpadUp()" onpointerleave="dpadUp()" onpointercancel="dpadUp()">■</div>
+        <div class="dp-btn" data-dir="right"
+          onpointerdown="dpadDown('right')"
+          onpointerup="dpadUp()" onpointerleave="dpadUp()" onpointercancel="dpadUp()">▶</div>
+        <div class="dp-btn" data-dir="backward"
+          onpointerdown="dpadDown('backward')"
+          onpointerup="dpadUp()" onpointerleave="dpadUp()" onpointercancel="dpadUp()">▼</div>
+      </div>
+
+      <!-- Tank dpad (scheme 2 / QA·WS) — hidden until scheme 2 active -->
+      <div id="tank-wrap">
+        <!--  LEFT motor  |  BOTH  |  RIGHT motor  -->
+        <div class="tank-btn"
+          onpointerdown="tankDown(this,'tank_left_fwd','tank_left_stop','L')"
+          onpointerup="tankUp(this)" onpointerleave="tankUp(this)" onpointercancel="tankUp(this)">
+          <span class="tk-side">L</span><span class="tk-glyph">▲</span>
+        </div>
+        <div class="tank-btn"
+          onpointerdown="tankDown(this,'forward','stop','B')"
+          onpointerup="tankUp(this)" onpointerleave="tankUp(this)" onpointercancel="tankUp(this)">
+          <span class="tk-glyph">▲▲</span>
+        </div>
+        <div class="tank-btn"
+          onpointerdown="tankDown(this,'tank_right_fwd','tank_right_stop','R')"
+          onpointerup="tankUp(this)" onpointerleave="tankUp(this)" onpointercancel="tankUp(this)">
+          <span class="tk-side">R</span><span class="tk-glyph">▲</span>
+        </div>
+
+        <div class="tank-btn stop-btn"
+          onpointerdown="tankStop(this,'tank_left_stop')"
+          onpointerup="tankStopUp(this)" onpointerleave="tankStopUp(this)">
+          <span class="tk-side">L</span><span class="tk-glyph">■</span>
+        </div>
+        <div class="tank-btn stop-btn"
+          onpointerdown="tankStop(this,'stop')"
+          onpointerup="tankStopUp(this)" onpointerleave="tankStopUp(this)">
+          <span class="tk-glyph">■</span>
+        </div>
+        <div class="tank-btn stop-btn"
+          onpointerdown="tankStop(this,'tank_right_stop')"
+          onpointerup="tankStopUp(this)" onpointerleave="tankStopUp(this)">
+          <span class="tk-side">R</span><span class="tk-glyph">■</span>
+        </div>
+
+        <div class="tank-btn"
+          onpointerdown="tankDown(this,'tank_left_bwd','tank_left_stop','L')"
+          onpointerup="tankUp(this)" onpointerleave="tankUp(this)" onpointercancel="tankUp(this)">
+          <span class="tk-side">L</span><span class="tk-glyph">▼</span>
+        </div>
+        <div class="tank-btn"
+          onpointerdown="tankDown(this,'backward','stop','B')"
+          onpointerup="tankUp(this)" onpointerleave="tankUp(this)" onpointercancel="tankUp(this)">
+          <span class="tk-glyph">▼▼</span>
+        </div>
+        <div class="tank-btn"
+          onpointerdown="tankDown(this,'tank_right_bwd','tank_right_stop','R')"
+          onpointerup="tankUp(this)" onpointerleave="tankUp(this)" onpointercancel="tankUp(this)">
+          <span class="tk-side">R</span><span class="tk-glyph">▼</span>
+        </div>
       </div>
 
       <div class="sec-label">SPEED</div>
@@ -138,7 +209,7 @@
       <div class="sec-label">CONTROL SCHEME</div>
       <div id="scheme-btns">
         <button class="btn active" id="sch-wasd" onclick="setScheme(1)">WASD</button>
-        <button class="btn"        id="sch-tank" onclick="setScheme(2)">QA/WS</button>
+        <button class="btn"        id="sch-tank" onclick="setScheme(2)">TANK</button>
       </div>
 
       <div class="sec-label">CAPTURE</div>
@@ -147,10 +218,29 @@
         <button class="btn danger" id="btn-video" onclick="toggleVideo()">⏺ REC</button>
       </div>
 
-      <div class="sec-label purple">FACE DETECTION</div>
-      <div id="face-btns">
-        <button class="btn purple" onclick="setMode('FACE')">👤 SCAN</button>
-        <button class="btn purple" onclick="sendCmd('face_save')">💾 SAVE</button>
+      <div class="sec-label teal">LIGHT PAINTING</div>
+      <div id="lp-btns">
+        <button class="btn teal" onclick="triggerLightPaint(5)">5s</button>
+        <button class="btn teal" onclick="triggerLightPaint(10)">10s</button>
+        <button class="btn teal" onclick="triggerLightPaint(20)">20s</button>
+      </div>
+      <div id="lp-result"></div>
+
+      <div class="sec-label pink">DANCE</div>
+      <div id="dance-btns">
+        <button class="btn pink" id="btn-dance" onclick="toggleDance()">♫ DANCE</button>
+        <button class="btn"      onclick="sendCmd('face_save')">💾 FACE SAVE</button>
+      </div>
+
+      <div class="sec-label amber">SLEEP</div>
+      <div id="sleep-btns">
+        <button class="btn amber" id="btn-sleep" onclick="toggleSleep()">💤 SLEEP</button>
+        <button class="btn amber" onclick="apiFetch('/wake',{})">☀ WAKE</button>
+      </div>
+
+      <div class="sec-label">QR DRIVE GUIDE</div>
+      <div id="qr-guide-row">
+        <a class="btn full" href="/qr_codes" target="_blank">📋 PRINT QR CODES</a>
       </div>
 
     </div>
@@ -164,11 +254,12 @@
     <div class="sb-item"><span class="sb-label">SPEED</span>&nbsp;<span class="sb-val" id="sb-speed">0.6</span></div>
     <div class="sb-item"><span class="sb-label">CAM</span>&nbsp;<span class="sb-val" style="color:var(--green)">LIVE</span></div>
     <div class="sb-item"><span class="sb-label">FACES</span>&nbsp;<span class="sb-val" id="sb-faces" style="color:var(--purple)">0</span></div>
+    <div class="sb-item"><span class="sb-label">RIFT</span>&nbsp;<span class="sb-val" id="sb-rift" style="color:var(--dim)">–</span></div>
     <div class="sb-item"><span class="sb-label">FRM</span>&nbsp;<span class="sb-val"   id="sb-frame">0</span></div>
-    <div id="sb-version">KIDA v2.4 · RASPBERRY PI</div>
+    <div id="sb-version">KIDA v2.5 · RASPBERRY PI</div>
   </footer>
 
 </div>
-<script src="/static/main.js"></script>
+<script src="/static/js/main.js"></script>
 </body>
 </html>

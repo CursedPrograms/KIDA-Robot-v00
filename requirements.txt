@@ -9,4 +9,6 @@ zeroconf
 gpiozero
 spidev
 rpi-ws281x
-qrcode
+qrcode[pil]
+pyzbar
+pydub
