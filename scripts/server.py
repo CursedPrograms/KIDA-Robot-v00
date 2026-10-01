@@ -6,15 +6,17 @@ KIDA registers itself on the local network and discovers other robots/nodes
 automatically. The dashboard at / shows live status of all found peers.
 """
 
+import io
 import logging
+import os
 import socket
 import threading
 import requests
-from flask import Flask, jsonify, request, render_template, render_template_string
+from flask import Flask, Response, jsonify, request, render_template, render_template_string
 from zeroconf import ServiceInfo, Zeroconf, ServiceBrowser
 
 from shared_state import (
-    command_queue,
+    command_queue, wait_frame,
     _robot_state, _robot_state_lock,
     _system_stats, _stats_lock,
     _face_results, _face_lock,
@@ -26,7 +28,10 @@ THIS_PORT = 5003
 TYPE      = "_flask-link._tcp.local."
 
 logger = logging.getLogger("kida.flask")
-app    = Flask(__name__, static_folder="static", template_folder="templates")
+_ROOT  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+app    = Flask(__name__,
+               static_folder=os.path.join(_ROOT, "static"),
+               template_folder=os.path.join(_ROOT, "templates"))
 
 # ── Network discovery ──────────────────────────────────────────────────────────
 found_servers: dict = {}
@@ -96,7 +101,8 @@ def shutdown_zeroconf() -> None:
 def dashboard():
     # Serve index.html from templates first; fall back to live network page
     try:
-        return render_template("index.html")
+        return render_template("index.html", this_name=THIS_NAME,
+                               this_ip=my_ip, this_port=THIS_PORT)
     except Exception:
         pass
 
@@ -211,6 +217,28 @@ def set_mode_route():
         command_queue.put(f"_mode_{mode_str}")
         return jsonify({"mode": mode_str})
     return jsonify({"error": "invalid mode"}), 400
+
+
+@app.route("/video_feed")
+def video_feed():
+    """MJPEG of the camera panel exactly as ui.py shows it (320x240)."""
+    def gen():
+        while True:
+            jpg = wait_frame(1.0)
+            if jpg:
+                yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n"
+                       + jpg + b"\r\n")
+    return Response(gen(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+
+@app.route("/qr.png")
+def qr_png():
+    """Same QR the left panel of ui.py shows — points at this dashboard."""
+    import qrcode
+    img = qrcode.make(f"http://{my_ip}:{THIS_PORT}", border=2)
+    buf = io.BytesIO()
+    img.save(buf, "PNG")
+    return Response(buf.getvalue(), mimetype="image/png")
 
 
 @app.route("/face/results")

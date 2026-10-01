@@ -8,6 +8,21 @@ import pygame
 
 logger = logging.getLogger(__name__)
 
+# Force ALSA and the card that `speaker-test -D hw:0,0` plays through. SDL reads
+# SDL_AUDIODRIVER when the mixer starts, not at import, so setting it here is enough.
+# Both can be overridden from the environment without touching the code.
+os.environ.setdefault("SDL_AUDIODRIVER", "alsa")
+AUDIO_DEVICE = os.environ.get("KIDA_AUDIO_DEVICE", "hw:0,0")
+
+
+def _init_mixer() -> None:
+    try:
+        pygame.mixer.init(devicename=AUDIO_DEVICE)
+        logger.info("Audio on ALSA device %s", AUDIO_DEVICE)
+    except pygame.error as e:
+        logger.warning("Could not open %s (%s); falling back to default audio device", AUDIO_DEVICE, e)
+        pygame.mixer.init()
+
 
 class MusicPlayer:
     """
@@ -22,7 +37,7 @@ class MusicPlayer:
     """
 
     def __init__(self, folder: str, shuffle: bool = False):
-        pygame.mixer.init()
+        _init_mixer()
 
         self.current_track: str = ""
         self.playing:       bool = False

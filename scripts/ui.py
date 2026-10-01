@@ -41,11 +41,13 @@ from shared_state      import (
     _system_stats, _stats_lock,
     _face_results, _face_lock,
     _face_frame_q, _face_enabled, _deepface_ok,
+    publish_frame, frame_wanted,
 )
-from scripts.server    import run_flask, shutdown_zeroconf
+from server            import run_flask, shutdown_zeroconf
 from system_monitor    import start_stats_thread, get_local_ip
 from face_detector     import start_face_thread
 from camera_utils      import cam_to_surface, make_qr
+import hud_layout
 from render_helpers    import (
     hline, vline,
     render_camera, render_info_strip, render_top_bar,
@@ -71,9 +73,16 @@ _MODE_MAP = {
 }
 
 
-def _make_command_processor(motors, set_led, take_photo, toggle_video,
-                             music, speed_levels):
-    """Returns a closure that processes a single command string."""
+REMOTE_HOLD_S = 0.8   # a remote drive command stops unless resent within this
+
+
+def _make_command_processor(take_photo, toggle_video, music, speed_levels):
+    """Returns a closure that processes a single command string.
+
+    Drive commands (forward/backward/left/right, tank:L:R) don't touch the
+    motors directly — they set a remote drive intent that the USER-mode drive
+    logic in main() applies each frame, so the per-frame "no key held → stop"
+    doesn't cancel them. Clients resend while held (dead-man timeout)."""
 
     state = {
         "direction":     "STOPPED",
@@ -83,7 +92,15 @@ def _make_command_processor(motors, set_led, take_photo, toggle_video,
         "music_playing": False,
         "mode":          Mode.USER,
         "video_rec":     False,
+        "face_scan":     True,
+        "remote":        None,    # ("dir", "forward") | ("tank", (l, r))
+        "remote_until":  0.0,
+        "hold_dir":      None,    # on-screen d-pad held with the mouse
     }
+
+    def drive_intent(kind, value):
+        state["remote"]       = (kind, value)
+        state["remote_until"] = time.monotonic() + REMOTE_HOLD_S
 
     def music_play():
         music.play_next()
@@ -100,45 +117,73 @@ def _make_command_processor(motors, set_led, take_photo, toggle_video,
         cmd = cmd.strip().lower()
 
         if cmd in ("up", "forward"):
-            motors.forward(state["speed"]);    set_led((0, 255, 0));   state["direction"] = "FORWARD"
+            drive_intent("dir", "forward")
         elif cmd in ("down", "backward"):
-            motors.backward(state["speed"]);   set_led((255, 0, 0));   state["direction"] = "BACKWARD"
-        elif cmd == "left":
-            motors.turn_left(state["speed"]);  set_led((0, 0, 255));   state["direction"] = "LEFT"
-        elif cmd == "right":
-            motors.turn_right(state["speed"]); set_led((255, 255, 0)); state["direction"] = "RIGHT"
+            drive_intent("dir", "backward")
+        elif cmd in ("left", "right"):
+            drive_intent("dir", cmd)
+        elif cmd.startswith("tank:"):            # tank:<left>:<right>, each -1/0/1
+            try:
+                l, r = (max(-1, min(1, int(v))) for v in cmd[5:].split(":"))
+                drive_intent("tank", (l, r))
+            except ValueError:
+                pass
         elif cmd == "stop":
-            motors.stop();                     set_led((0, 0, 0));     state["direction"] = "STOPPED"
+            state["remote_until"] = 0.0
         elif cmd == "photo":
             take_photo()
         elif cmd in ("video", "video_start"):
             if not state["video_rec"]:         toggle_video(state)
         elif cmd == "video_stop":
             if state["video_rec"]:             toggle_video(state)
+        elif cmd == "video_toggle":
+            toggle_video(state)
         elif cmd in ("music", "play_music", "start_music"):
             if not state["music_playing"]:     music_play()
         elif cmd in ("stop_music", "pause_music"):
             music_stop()
+        elif cmd == "music_toggle":
+            music_stop() if state["music_playing"] else music_play()
         elif cmd in ("skip", "next_music", "skip_music"):
-            music.play_next()
+            if state["music_playing"]:         music.play_next()
         elif cmd == "speed":
             state["speed_idx"] = (state["speed_idx"] + 1) % len(speed_levels)
             state["speed"]     = speed_levels[state["speed_idx"]]
+        elif cmd.startswith("speed_"):           # speed_1 … speed_4 (the 4 buttons)
+            try:
+                i = int(cmd[6:]) - 1
+                if 0 <= i < len(speed_levels):
+                    state["speed_idx"] = i
+                    state["speed"]     = speed_levels[i]
+            except ValueError:
+                pass
         elif cmd.startswith("_speed_"):
             try:   state["speed"] = float(cmd[7:])
             except ValueError: pass
+        elif cmd in ("scheme_1", "scheme_wasd"):
+            state["ctrl_scheme"] = 1
+        elif cmd in ("scheme_2", "scheme_tank"):
+            state["ctrl_scheme"] = 2
+        elif cmd in ("face_save", "face_snapshot"):
+            state["_face_snapshot"]()
+        elif cmd == "face_scan_toggle":
+            state["_face_scan_toggle"]()
         elif cmd in _MODE_MAP:
             state["mode"] = switch_mode(state["mode"], _MODE_MAP[cmd], ctx)
-
-        with _robot_state_lock:
-            _robot_state.update(
-                direction=state["direction"], speed=state["speed"],
-                mode=state["mode"].name, video_rec=state["video_rec"],
-                music_playing=state["music_playing"],
-            )
         return state
 
     return process, state
+
+
+def _face_json(face: dict) -> dict:
+    """Plain-Python copy of a face result (DeepFace hands back numpy numbers)."""
+    reg = face.get("region", {}) or {}
+    return {
+        "region": {k: int(reg.get(k, 0)) for k in ("x", "y", "w", "h")},
+        "gender": str(face.get("gender", "?")),
+        "age":    int(face.get("age", 0) or 0),
+        "conf":   float(face.get("conf", 0) or 0),
+    }
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -151,25 +196,19 @@ def main() -> None:
     pygame.display.set_caption("KIDA")
     clock = pygame.time.Clock()
 
-    TOP_H = 58;  BOT_H = 42;  PAD = 10
-    L_W   = 290; R_W   = 300; TAB_H = 50
+    # ── Layout + fonts — shared with controller/main.py (hud_layout.py) ──────
+    lay = hud_layout.compute_layout(W, H)
+    TOP_H, BOT_H, PAD = lay["TOP_H"], lay["BOT_H"], lay["PAD"]
+    L_W, R_W          = lay["L_W"], lay["R_W"]
+    CAM_X, CAM_Y      = lay["CAM_X"], lay["CAM_Y"]
+    CAM_W, CAM_H      = lay["CAM_W"], lay["CAM_H"]
+    CAM_NATIVE_W, CAM_NATIVE_H = hud_layout.CAM_NATIVE_W, hud_layout.CAM_NATIVE_H
 
-    CAM_AVAIL_W = W - L_W - R_W
-    CAM_AVAIL_H = H - TOP_H - BOT_H
-    CAM_W = int(CAM_AVAIL_W * 0.82);  CAM_H = int(CAM_AVAIL_H * 0.60)
-    CAM_X = L_W + (CAM_AVAIL_W - CAM_W) // 2
-    CAM_Y = TOP_H + TAB_H + PAD
-    CAM_NATIVE_W, CAM_NATIVE_H = 320, 240
-
-    # ── Fonts ──────────────────────────────────────────────────────────────────
-    fmono_xl = pygame.font.SysFont("Courier New", 34, bold=True)
-    fmono_md = pygame.font.SysFont("Courier New", 20, bold=True)
-    fmono_sm = pygame.font.SysFont("Courier New", 17, bold=True)
-    fmono_xs = pygame.font.SysFont("Courier New", 14)
-    fbody    = pygame.font.SysFont("Arial", 18, bold=True)
-    flabel   = pygame.font.SysFont("Arial", 17)
-    flabel_s = pygame.font.SysFont("Arial", 15)
-    fdpad    = pygame.font.SysFont("Arial", 32, bold=True)
+    fonts    = hud_layout.make_fonts()
+    fmono_xl = fonts["fmono_xl"];  fmono_md = fonts["fmono_md"]
+    fmono_sm = fonts["fmono_sm"];  fmono_xs = fonts["fmono_xs"]
+    fbody    = fonts["fbody"];     flabel   = fonts["flabel"]
+    flabel_s = fonts["flabel_s"];  fdpad    = fonts["fdpad"]
 
     # ── Background threads ─────────────────────────────────────────────────────
     threading.Thread(target=run_flask,  daemon=True).start()
@@ -274,59 +313,60 @@ def main() -> None:
         except Exception as e: logger.error("Face snapshot failed: %s", e)
 
     # ── Command processor + shared drive state ─────────────────────────────────
-    speed_levels = [0.4, 0.6, 0.8, 1.0]
+    speed_levels = hud_layout.SPEED_LEVELS
     process_cmd, ds = _make_command_processor(
-        motors, set_led, take_photo, toggle_video, music, speed_levels
+        take_photo, toggle_video, music, speed_levels
     )
 
     def music_play():  ds["_music_play"]()
     def music_stop():  ds["_music_stop"]()
 
-    # ── UI layout ──────────────────────────────────────────────────────────────
-    TAB_LABELS = ["USER CTRL", "AUTONOMOUS", "LINE FOLLOW"]
-    tab_w  = min(160, (CAM_AVAIL_W - PAD * 4) // 3)
-    tab_x0 = L_W + (CAM_AVAIL_W - (tab_w * 3 + PAD * 2)) // 2
-    tabs   = [pygame.Rect(tab_x0 + i * (tab_w + PAD), TOP_H + 6, tab_w, TAB_H - 12)
-              for i in range(3)]
+    def toggle_face_scan() -> None:
+        ds["face_scan"] = not ds["face_scan"]
+        if ds["face_scan"]:
+            _face_enabled.set()
+        else:
+            _face_enabled.clear()
+            with _face_lock:
+                _face_results.clear()
 
-    DP_S = 76;  DP_G = 10
-    DP_CX = W - R_W + (R_W - DP_S) // 2
-    DP_Y  = TOP_H + TAB_H + PAD + 10
-    dpad = {
-        "forward":  pygame.Rect(DP_CX,               DP_Y,                      DP_S, DP_S),
-        "left":     pygame.Rect(DP_CX - DP_S - DP_G, DP_Y + DP_S + DP_G,       DP_S, DP_S),
-        "stop":     pygame.Rect(DP_CX,               DP_Y + DP_S + DP_G,        DP_S, DP_S),
-        "right":    pygame.Rect(DP_CX + DP_S + DP_G, DP_Y + DP_S + DP_G,       DP_S, DP_S),
-        "backward": pygame.Rect(DP_CX,               DP_Y + (DP_S + DP_G) * 2, DP_S, DP_S),
-    }
-    DPAD_GLYPHS = {"forward": "▲", "left": "◀", "stop": "■", "right": "▶", "backward": "▼"}
+    ds["_face_snapshot"]    = save_face_snapshot
+    ds["_face_scan_toggle"] = toggle_face_scan
 
-    rp_x = W - R_W + PAD;  rp_w = R_W - PAD * 2
-    spd_y = DP_Y + (DP_S + DP_G) * 3 + 22
-    spd_w = (rp_w - DP_G * 3) // 4;  spd_h = 44
-    spd_dots = [pygame.Rect(rp_x + i * (spd_w + DP_G), spd_y, spd_w, spd_h) for i in range(4)]
+    # ── Drive helpers ──────────────────────────────────────────────────────────
+    def drive_dir(d: str) -> None:
+        if   d == "forward":  motors.forward(ds["speed"]);    set_led((0, 255, 0))
+        elif d == "backward": motors.backward(ds["speed"]);   set_led((255, 0, 0))
+        elif d == "left":     motors.turn_left(ds["speed"]);  set_led((0, 0, 255))
+        elif d == "right":    motors.turn_right(ds["speed"]); set_led((255, 255, 0))
+        else:                 motors.stop();                  set_led((0, 0, 0)); d = "stopped"
+        ds["direction"] = d.upper()
 
-    sch_y = spd_y + spd_h + 26;  sch_w = (rp_w - DP_G) // 2;  sch_h = 44
-    sch_btns = [
-        pygame.Rect(rp_x,                sch_y, sch_w, sch_h),
-        pygame.Rect(rp_x + sch_w + DP_G, sch_y, sch_w, sch_h),
-    ]
+    def drive_tank(l: int, r: int) -> None:
+        for wheel, v in ((motors.left, l), (motors.right, r)):
+            if   v > 0: wheel.forward(ds["speed"])
+            elif v < 0: wheel.backward(ds["speed"])
+            else:       wheel.stop()
+        if l and r:  set_led((0, 255, 255))
+        elif l:      set_led((255, 0, 255))
+        elif r:      set_led((255, 165, 0))
+        else:        set_led((0, 0, 0))
+        ds["direction"] = "TANK" if (l or r) else "STOPPED"
 
-    cap_y = sch_y + sch_h + 26;  cap_w = (rp_w - DP_G) // 2;  cap_h = 48
-    btn_photo      = pygame.Rect(rp_x,                cap_y, cap_w, cap_h)
-    btn_video      = pygame.Rect(rp_x + cap_w + DP_G, cap_y, cap_w, cap_h)
-    btn_face_snap  = pygame.Rect(rp_x, cap_y + cap_h + 10, cap_w, 44)
-    btn_face_scan  = pygame.Rect(rp_x + cap_w + DP_G, cap_y + cap_h + 10, cap_w, 44)
-
-    lp_x = PAD;  lp_w = L_W - PAD * 2
-    mus_btn_y = H - BOT_H - 76;  mus_btn_h = 48;  mus_btn_w = (lp_w - DP_G) // 2
-    btn_play = pygame.Rect(lp_x,                    mus_btn_y, mus_btn_w, mus_btn_h)
-    btn_skip = pygame.Rect(lp_x + mus_btn_w + DP_G, mus_btn_y, mus_btn_w, mus_btn_h)
+    # ── UI layout (hud_layout.compute_layout) ──────────────────────────────────
+    TAB_LABELS  = hud_layout.TAB_LABELS
+    DPAD_GLYPHS = hud_layout.DPAD_GLYPHS
+    tabs, dpad  = lay["tabs"], lay["dpad"]
+    spd_dots, sch_btns = lay["spd_dots"], lay["sch_btns"]
+    btn_photo, btn_video = lay["btn_photo"], lay["btn_video"]
+    btn_face_snap, btn_face_scan = lay["btn_face_snap"], lay["btn_face_scan"]
+    btn_play, btn_skip = lay["btn_play"], lay["btn_skip"]
+    rp_x, spd_y, sch_y, cap_y = lay["rp_x"], lay["spd_y"], lay["sch_y"], lay["cap_y"]
+    lp_x, lp_w = lay["lp_x"], lay["lp_w"]
 
     bg_surf = build_background(W, H, TOP_H, BOT_H, L_W, R_W)
 
     # Face scanning runs in all modes — enable immediately
-    face_scan_active = True
     _face_enabled.set()
 
     # ── Per-frame state ────────────────────────────────────────────────────────
@@ -355,9 +395,11 @@ def main() -> None:
         if cam_tick >= 3:
             cam_tick = 0
             cam_surf, cam_pil = cam_to_surface(cam, CAM_W, CAM_H)
+            if cam_pil is not None and frame_wanted():
+                publish_frame(cam_pil, (CAM_NATIVE_W, CAM_NATIVE_H))
 
         # Feed face worker in all modes when scanning is active
-        if face_scan_active:
+        if ds["face_scan"]:
             face_tick += 1
             if face_tick >= 45 and cam_pil is not None:
                 face_tick = 0
@@ -384,7 +426,7 @@ def main() -> None:
         render_camera(screen, cam_surf, face_snapshot, frame, ds["video_rec"],
                       ds["mode"], CAM_X, CAM_Y, CAM_W, CAM_H,
                       CAM_NATIVE_W, CAM_NATIVE_H,
-                      fmono_sm, fmono_xs, _deepface_ok.is_set(), face_scan_active)
+                      fmono_sm, fmono_xs, _deepface_ok.is_set(), ds["face_scan"])
 
         render_info_strip(screen, ds["mode"], ds["direction"], ds["speed"],
                           ds["ctrl_scheme"], led_color(), face_count,
@@ -413,7 +455,7 @@ def main() -> None:
                            ds["ctrl_scheme"], ds["video_rec"],
                            dpad, DPAD_GLYPHS, spd_dots, sch_btns,
                            btn_photo, btn_video, btn_face_snap, btn_face_scan,
-                           face_scan_active,
+                           ds["face_scan"],
                            rp_x, spd_y, sch_y, cap_y, TOP_H, PAD, mouse,
                            fmono_md, fmono_xs, fbody, fdpad)
 
@@ -446,11 +488,12 @@ def main() -> None:
                     ds["mode"] = switch_mode(ds["mode"], Mode.AUTONOMOUS, ctx)
                 elif k == pygame.K_l:
                     ds["mode"] = switch_mode(ds["mode"], Mode.LINE, ctx)
+                elif k == pygame.K_x and ds["mode"] in (Mode.USER, Mode.AUTONOMOUS):
+                    # ← cycle speed (autonomous cruises at the selected speed too)
+                    ds["speed_idx"] = (ds["speed_idx"] + 1) % len(speed_levels)
+                    ds["speed"]     = speed_levels[ds["speed_idx"]]
                 elif ds["mode"] == Mode.USER:
-                    if   k == pygame.K_x:               # ← cycle speed
-                        ds["speed_idx"] = (ds["speed_idx"] + 1) % len(speed_levels)
-                        ds["speed"]     = speed_levels[ds["speed_idx"]]
-                    elif k == pygame.K_1: ds["ctrl_scheme"] = 1  # ← WASD
+                    if   k == pygame.K_1: ds["ctrl_scheme"] = 1  # ← WASD
                     elif k == pygame.K_2: ds["ctrl_scheme"] = 2  # ← QA/WS
                     elif k == pygame.K_c: take_photo()
                     elif k == pygame.K_v: toggle_video(ds)
@@ -464,35 +507,32 @@ def main() -> None:
                 if ds["mode"] == Mode.USER:
                     for cmd, r in dpad.items():
                         if r.collidepoint(event.pos):
-                            if   cmd == "forward":  motors.forward(ds["speed"]);    set_led((0, 255, 0))
-                            elif cmd == "backward": motors.backward(ds["speed"]);   set_led((255, 0, 0))
-                            elif cmd == "left":     motors.turn_left(ds["speed"]);  set_led((0, 0, 255))
-                            elif cmd == "right":    motors.turn_right(ds["speed"]); set_led((255, 255, 0))
-                            elif cmd == "stop":     motors.stop();                  set_led((0, 0, 0))
-                            ds["direction"] = cmd.upper()
-                    for i, r in enumerate(spd_dots):
-                        if r.collidepoint(event.pos):
-                            ds["speed_idx"] = i
-                            ds["speed"]     = speed_levels[ds["speed_idx"]]
+                            # held until MOUSEBUTTONUP (drive logic below)
+                            ds["hold_dir"] = None if cmd == "stop" else cmd
+                            if cmd == "stop":
+                                ds["remote_until"] = 0.0
                     for i, r in enumerate(sch_btns):
                         if r.collidepoint(event.pos): ds["ctrl_scheme"] = i + 1
                     if btn_photo.collidepoint(event.pos): take_photo()
                     if btn_video.collidepoint(event.pos): toggle_video(ds)
 
+                if ds["mode"] in (Mode.USER, Mode.AUTONOMOUS):
+                    for i, r in enumerate(spd_dots):
+                        if r.collidepoint(event.pos):
+                            ds["speed_idx"] = i
+                            ds["speed"]     = speed_levels[ds["speed_idx"]]
+
                 if btn_face_snap.collidepoint(event.pos):
                     save_face_snapshot()
                 if btn_face_scan.collidepoint(event.pos):
-                    face_scan_active = not face_scan_active
-                    if face_scan_active:
-                        _face_enabled.set()
-                    else:
-                        _face_enabled.clear()
-                        with _face_lock:
-                            _face_results.clear()
+                    toggle_face_scan()
                 if btn_play.collidepoint(event.pos):
                     music_stop() if ds["music_playing"] else music_play()
                 if btn_skip.collidepoint(event.pos) and ds["music_playing"]:
                     music.play_next()
+
+            elif event.type == pygame.MOUSEBUTTONUP:
+                ds["hold_dir"] = None
 
         # Flask command queue
         while not command_queue.empty():
@@ -504,7 +544,7 @@ def main() -> None:
         if mode == Mode.AUTONOMOUS:
             if avoider:
                 try:
-                    if avoider.check_and_avoid(): set_led((255, 0, 0))
+                    if avoider.check_and_avoid(ds["speed"]): set_led((255, 0, 0))
                 except Exception as e: logger.warning("Avoider: %s", e)
             else:
                 motors.stop()
@@ -518,23 +558,44 @@ def main() -> None:
 
         elif mode == Mode.USER:
             keys = pygame.key.get_pressed()
-            if ds["ctrl_scheme"] == 1:
+            # Remote intent (controller / web, resent while held) or the
+            # on-screen d-pad held with the mouse — local keys win.
+            remote = ds["remote"] if time.monotonic() < ds["remote_until"] else None
+            if ds["hold_dir"]:
+                remote = ("dir", ds["hold_dir"])
+
+            if ds["ctrl_scheme"] == 1 and any(keys[k] for k in (pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d)):
                 # ── WASD (press 1) ─────────────────────────────────────────────
-                if   keys[pygame.K_w]: motors.forward(ds["speed"]);    set_led((0, 255, 0));   ds["direction"] = "FORWARD"
-                elif keys[pygame.K_s]: motors.backward(ds["speed"]);   set_led((255, 0, 0));   ds["direction"] = "BACKWARD"
-                elif keys[pygame.K_a]: motors.turn_left(ds["speed"]);  set_led((0, 0, 255));   ds["direction"] = "LEFT"
-                elif keys[pygame.K_d]: motors.turn_right(ds["speed"]); set_led((255, 255, 0)); ds["direction"] = "RIGHT"
-                else:                  motors.stop();                  set_led((0, 0, 0));     ds["direction"] = "STOPPED"
-            else:
+                if   keys[pygame.K_w]: drive_dir("forward")
+                elif keys[pygame.K_s]: drive_dir("backward")
+                elif keys[pygame.K_a]: drive_dir("left")
+                else:                  drive_dir("right")
+            elif ds["ctrl_scheme"] == 2 and any(keys[k] for k in (pygame.K_q, pygame.K_a, pygame.K_w, pygame.K_s)):
                 # ── QA/WS tank (press 2) ───────────────────────────────────────
-                left, right = motors.control_tank(keys, ds["speed"])
-                if left and right:  set_led((0, 255, 255))
-                elif left:          set_led((255, 0, 255))
-                elif right:         set_led((255, 165, 0))
-                else:               set_led((0, 0, 0))
+                drive_tank(1 if keys[pygame.K_q] else -1 if keys[pygame.K_a] else 0,
+                           1 if keys[pygame.K_w] else -1 if keys[pygame.K_s] else 0)
+            elif remote and remote[0] == "dir":
+                drive_dir(remote[1])
+            elif remote and remote[0] == "tank":
+                drive_tank(*remote[1])
+            else:
+                drive_dir("stop")
 
         if ds["music_playing"]:
             led.rhythm_wave(frame)
+
+        # ── Publish for Flask /status (controller + web dashboard) ────────────
+        with _robot_state_lock:
+            _robot_state.update(
+                direction=ds["direction"], speed=ds["speed"],
+                speed_idx=ds["speed_idx"], ctrl_scheme=ds["ctrl_scheme"],
+                mode=ds["mode"].name, video_rec=ds["video_rec"],
+                music_playing=ds["music_playing"],
+                track=music.current_track or "",
+                face_scan=ds["face_scan"], face_count=face_count,
+                faces=[_face_json(f) for f in face_snapshot], deepface_ok=_deepface_ok.is_set(),
+                frame=frame,
+            )
 
         led.show()
         frame += 1

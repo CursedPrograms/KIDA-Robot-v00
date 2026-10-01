@@ -1,0 +1,7 @@
+# KIDA v00 remote controller — Python dependencies
+# Deliberately light: no picamera2, gpiozero, spidev or rpi-ws281x — this runs
+# on a separate PC with no robot hardware attached.
+# Install via: pip install -r requirements.txt
+
+pygame>=2.5
+requests>=2.31

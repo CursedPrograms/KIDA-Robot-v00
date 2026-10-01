@@ -2,173 +2,135 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>KIDA — Remote Control</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/styles.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ this_name }} — KIDA HUD</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
 </head>
 <body>
+<!-- Mirrors the robot's own window (scripts/ui.py + render_helpers.py):
+     same panels, sizes, palette, labels and key bindings. -->
 <div id="app">
 
-  <!-- ── Top bar ──────────────────────────────────────────────────────────── -->
+  <!-- ── Top bar (render_top_bar) ─────────────────────────────────────────── -->
   <header id="topbar">
     <div id="logo">KIDA</div>
-    <div id="tabs">
-      <button class="tab active"   onclick="setMode('USER')">USER CTRL</button>
-      <button class="tab"          onclick="setMode('AUTONOMOUS')">AUTONOMOUS</button>
-      <button class="tab"          onclick="setMode('LINE')">LINE FOLLOW</button>
-      <button class="tab face-tab" onclick="setMode('FACE')">👤 FACE SCAN</button>
-    </div>
-    <div id="led-dots">
-      <div class="led-dot" id="led0"></div>
-      <div class="led-dot" id="led1"></div>
-      <div class="led-dot" id="led2"></div>
-      <div class="led-dot" id="led3"></div>
-      <div class="led-dot" id="led4"></div>
-      <div class="led-dot" id="led5"></div>
-      <div class="led-dot" id="led6"></div>
-      <div class="led-dot" id="led7"></div>
-    </div>
-    <div id="topchips">
-      <div class="chip" id="chip-cpu">
-        <span class="cv" id="val-cpu">–%</span>
-        <span class="cl">CPU</span>
-      </div>
-      <div class="chip" id="chip-temp">
-        <span class="cv" id="val-temp">–°C</span>
-        <span class="cl">TEMP</span>
-      </div>
-      <div class="chip">
-        <span class="cv" id="val-thr">–</span>
-        <span class="cl">THR</span>
-      </div>
+    <div id="top-right">
+      <div id="led-dots"></div>
+      <div class="chip"><span class="cl">CPU</span><span class="cv" id="v-cpu">0%</span></div>
+      <div class="chip"><span class="cl">TEMP</span><span class="cv" id="v-temp">0C</span></div>
+      <div class="chip"><span class="cl">THR</span><span class="cv" id="v-thr">0</span></div>
     </div>
   </header>
 
-  <!-- ── Left panel ───────────────────────────────────────────────────────── -->
-  <aside id="left">
-    <div class="panel-inner">
+  <!-- ── Left panel (render_left_panel) ───────────────────────────────────── -->
+  <aside id="left" class="panel">
+    <div id="qr-wrap"><img id="qr" src="/qr.png" alt=""></div>
+    <div id="ip">{{ this_ip }}</div>
+    <div id="port">port  {{ this_port }}</div>
+    <div id="scan-hint">SCAN TO OPEN DASHBOARD</div>
 
-      <div id="qr-block">
-        <img id="qr-img" src="" alt="QR">
-        <div id="qr-url">loading…</div>
-      </div>
+    <div class="sec">SYSTEM</div>
+    <div class="stat"><span class="lbl">CPU</span><span class="val" id="s-cpu">0%</span></div>
+    <div class="bar"><div class="fill" id="b-cpu" style="--c:var(--accent)"></div></div>
+    <div class="stat"><span class="lbl">TEMP</span><span class="val" id="s-temp">0°C</span></div>
+    <div class="bar"><div class="fill" id="b-temp" style="--c:var(--amber)"></div></div>
+    <div class="stat"><span class="lbl">RAM</span><span class="val" id="s-ram">0/1M</span></div>
+    <div class="bar"><div class="fill" id="b-ram" style="--c:var(--blue)"></div></div>
 
-      <div class="sec-label">SYSTEM</div>
-      <div class="stat-row"><span class="lbl">CPU</span><span class="val" id="stat-cpu">–%</span></div>
-      <div class="bar-track"><div class="bar-fill" id="bar-cpu"  style="width:0%;background:var(--accent)"></div></div>
-      <div class="stat-row"><span class="lbl">TEMP</span><span class="val" id="stat-temp">–°C</span></div>
-      <div class="bar-track"><div class="bar-fill" id="bar-temp" style="width:0%;background:var(--amber)"></div></div>
-      <div class="stat-row"><span class="lbl">RAM</span><span class="val"  id="stat-ram">–</span></div>
-      <div class="bar-track"><div class="bar-fill" id="bar-ram"  style="width:0%;background:var(--blue)"></div></div>
+    <div class="sec">NETWORK</div>
+    <div class="net"><span class="lbl">LATENCY</span><span class="val" id="n-lat">N/A</span></div>
+    <div class="net"><span class="lbl">THREADS</span><span class="val" id="n-thr">0</span></div>
+    <div class="net"><span class="lbl">DISK R</span><span class="val" id="n-dr">0 MB</span></div>
+    <div class="net"><span class="lbl">DISK W</span><span class="val" id="n-dw">0 MB</span></div>
+    <div class="net"><span class="lbl">BOOT</span><span class="val" id="n-boot">--:--</span></div>
 
-      <div class="divider"></div>
-      <div class="sec-label">NETWORK</div>
-      <div class="net-row"><span class="lbl">LATENCY</span><span class="val" id="net-lat">–</span></div>
-      <div class="net-row"><span class="lbl">THREADS</span><span class="val" id="net-thr">–</span></div>
-      <div class="net-row"><span class="lbl">DISK R</span><span class="val"  id="net-dr">–</span></div>
-      <div class="net-row"><span class="lbl">DISK W</span><span class="val"  id="net-dw">–</span></div>
-      <div class="net-row"><span class="lbl">BOOT</span><span class="val"    id="net-boot">–</span></div>
+    <div class="sec">MUSIC</div>
+    <div id="track">No track</div>
+    <div id="wave"></div>
 
-      <div class="divider"></div>
-      <div class="sec-label">MUSIC</div>
-      <div id="track-name">No track</div>
-      <div id="waveform"></div>
-      <div class="btn-row">
-        <button class="btn full" id="btn-play" onclick="toggleMusic()">PLAY</button>
-        <button class="btn full" onclick="sendCmd('skip_music')">SKIP ▶</button>
-      </div>
-
+    <div id="music-btns">
+      <button class="hb" id="btn-play" data-cmd="music_toggle">PLAY</button>
+      <button class="hb" id="btn-skip">SKIP ▶</button>
     </div>
   </aside>
 
-  <!-- ── Centre ───────────────────────────────────────────────────────────── -->
+  <!-- ── Centre: tabs, camera, info strip ─────────────────────────────────── -->
   <main id="centre">
-    <div id="centre-inner">
+    <div id="tabs">
+      <button class="hb tab" data-mode="user">USER CTRL</button>
+      <button class="hb tab" data-mode="autonomous">AUTONOMOUS</button>
+      <button class="hb tab" data-mode="line">LINE FOLLOW</button>
+    </div>
 
-      <div id="cam-wrap">
-        <img src="/video_feed" alt="Camera" id="cam-img">
-        <div class="corner tl"></div>
-        <div class="corner tr"></div>
-        <div class="corner bl"></div>
-        <div class="corner br"></div>
-        <div id="rec-badge"><div id="rec-dot"></div> REC</div>
-        <div id="face-scan-overlay">
-          <div id="scan-line"></div>
-          <div id="scan-label">FACE SCAN ACTIVE</div>
-        </div>
-        <div id="mode-overlay"></div>
-      </div>
+    <div id="cam">
+      <img id="cam-img" src="/video_feed" alt="">
+      <div id="faces"></div>
+      <div id="scanline"></div>
+      <div id="deepface-missing">DEEPFACE NOT INSTALLED</div>
+      <div id="mode-ov"></div>
+      <div id="rec"><span id="rec-dot"></span>REC</div>
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div id="nolink">[ NO CONNECTION TO ROBOT ]</div>
+    </div>
 
-      <div id="face-results"></div>
-
-      <div id="cam-info">
-        <div class="ci-item"><span class="ci-lbl">DIRECTION</span><span class="ci-val" id="ci-dir">STOPPED</span></div>
-        <div class="ci-item"><span class="ci-lbl">SPEED</span><span class="ci-val"     id="ci-spd">0.6</span></div>
-        <div class="ci-item"><span class="ci-lbl">MODE</span><span class="ci-val"      id="ci-mode">USER</span></div>
-        <div class="ci-item"><span class="ci-lbl">FACES</span><span class="ci-val"     id="ci-faces">0</span></div>
-      </div>
-
-      <div id="centre-wave"></div>
+    <div id="info">
+      <div class="ii"><span class="il">DIR</span><span class="iv" id="i-dir">STOPPED</span></div>
+      <div class="ii"><span class="il">SPEED</span><span class="iv" id="i-spd">0.4</span></div>
+      <div class="ii"><span class="il">SCHEME</span><span class="iv" id="i-sch">WASD</span></div>
+      <div class="ii"><span class="il" id="i-4l">LED</span><span class="iv" id="i-4v">R0 G0 B0</span></div>
     </div>
   </main>
 
-  <!-- ── Right panel ──────────────────────────────────────────────────────── -->
-  <aside id="right">
-    <div class="panel-inner">
+  <!-- ── Right panel (render_right_panel) ─────────────────────────────────── -->
+  <aside id="right" class="panel">
+    <div class="sec">DIRECTIONAL CONTROL</div>
+    <div id="dpad">
+      <button class="hb dp" data-dir="forward"  style="grid-area:f">▲</button>
+      <button class="hb dp" data-dir="left"     style="grid-area:l">◀</button>
+      <button class="hb dp danger stop" data-dir="stop" style="grid-area:s">■</button>
+      <button class="hb dp" data-dir="right"    style="grid-area:r">▶</button>
+      <button class="hb dp" data-dir="backward" style="grid-area:b">▼</button>
+    </div>
 
-      <div class="sec-label">DIRECTIONAL CONTROL</div>
-      <div id="dpad-wrap">
-        <div class="dp-btn" data-dir="forward"  onpointerdown="dpadDown('forward')"  onpointerup="dpadUp()">▲</div>
-        <div class="dp-btn" data-dir="left"     onpointerdown="dpadDown('left')"     onpointerup="dpadUp()">◀</div>
-        <div class="dp-btn stop-btn" data-dir="stop" onpointerdown="dpadDown('stop')" onpointerup="dpadUp()">■</div>
-        <div class="dp-btn" data-dir="right"    onpointerdown="dpadDown('right')"    onpointerup="dpadUp()">▶</div>
-        <div class="dp-btn" data-dir="backward" onpointerdown="dpadDown('backward')" onpointerup="dpadUp()">▼</div>
-      </div>
+    <div class="sec">SPEED</div>
+    <div class="row4" id="speeds">
+      <button class="hb mono" data-cmd="speed_1" data-user>1</button>
+      <button class="hb mono" data-cmd="speed_2" data-user>2</button>
+      <button class="hb mono" data-cmd="speed_3" data-user>3</button>
+      <button class="hb mono" data-cmd="speed_4" data-user>4</button>
+    </div>
 
-      <div class="sec-label">SPEED</div>
-      <div id="speed-btns">
-        <button class="btn"        data-spd="0.4" onclick="setSpeed(0.4)">1</button>
-        <button class="btn active" data-spd="0.6" onclick="setSpeed(0.6)">2</button>
-        <button class="btn"        data-spd="0.8" onclick="setSpeed(0.8)">3</button>
-        <button class="btn"        data-spd="1.0" onclick="setSpeed(1.0)">4</button>
-      </div>
+    <div class="sec">CONTROL SCHEME</div>
+    <div class="row2">
+      <button class="hb" id="sch-1" data-cmd="scheme_1" data-user>WASD</button>
+      <button class="hb" id="sch-2" data-cmd="scheme_2" data-user>QA/WS</button>
+    </div>
 
-      <div class="sec-label">CONTROL SCHEME</div>
-      <div id="scheme-btns">
-        <button class="btn active" id="sch-wasd" onclick="setScheme(1)">WASD</button>
-        <button class="btn"        id="sch-tank" onclick="setScheme(2)">QA/WS</button>
-      </div>
-
-      <div class="sec-label">CAPTURE</div>
-      <div id="capture-btns">
-        <button class="btn blue"   onclick="sendCmd('photo')">📷 PHOTO</button>
-        <button class="btn danger" id="btn-video" onclick="toggleVideo()">⏺ REC</button>
-      </div>
-
-      <div class="sec-label purple">FACE DETECTION</div>
-      <div id="face-btns">
-        <button class="btn purple" onclick="setMode('FACE')">👤 SCAN</button>
-        <button class="btn purple" onclick="sendCmd('face_save')">💾 SAVE</button>
-      </div>
-
+    <div class="sec">CAPTURE</div>
+    <div class="row2 cap">
+      <button class="hb" id="btn-photo" style="--hc:var(--blue)" data-cmd="photo" data-user>PHOTO</button>
+      <button class="hb" id="btn-video" style="--hc:var(--red)" data-cmd="video_toggle" data-user>REC</button>
+    </div>
+    <div class="row2 face">
+      <button class="hb" style="--hc:var(--purple)" data-cmd="face_save">SAVE FACES</button>
+      <button class="hb" id="btn-scan" style="--hc:var(--purple)" data-cmd="face_scan_toggle">SCAN OFF</button>
     </div>
   </aside>
 
-  <!-- ── Bottom bar ───────────────────────────────────────────────────────── -->
+  <!-- ── Bottom bar (render_bottom_bar) ───────────────────────────────────── -->
   <footer id="botbar">
-    <div class="sb-item"><div class="sb-ping"></div></div>
-    <div class="sb-item"><span class="sb-label">FLASK</span>&nbsp;<span class="sb-val">:5003</span></div>
-    <div class="sb-item"><span class="sb-label">MODE</span>&nbsp;<span class="sb-val"  id="sb-mode">USER</span></div>
-    <div class="sb-item"><span class="sb-label">SPEED</span>&nbsp;<span class="sb-val" id="sb-speed">0.6</span></div>
-    <div class="sb-item"><span class="sb-label">CAM</span>&nbsp;<span class="sb-val" style="color:var(--green)">LIVE</span></div>
-    <div class="sb-item"><span class="sb-label">FACES</span>&nbsp;<span class="sb-val" id="sb-faces" style="color:var(--purple)">0</span></div>
-    <div class="sb-item"><span class="sb-label">FRM</span>&nbsp;<span class="sb-val"   id="sb-frame">0</span></div>
-    <div id="sb-version">KIDA v2.4 · RASPBERRY PI</div>
+    <span id="ping"></span>
+    <span class="sb"><b>FLASK</b><em>:{{ this_port }}</em></span>
+    <span class="sb"><b>MODE</b><em id="sb-mode">USER</em></span>
+    <span class="sb"><b>SCHEME</b><em id="sb-sch">WASD</em></span>
+    <span class="sb"><b>SPEED</b><em id="sb-spd">0.4</em></span>
+    <span class="sb"><b>CAM</b><em>LIVE</em></span>
+    <span class="sb"><b>FACES</b><em id="sb-faces">0</em></span>
+    <span class="sb"><b>FRM</b><em id="sb-frm">0</em></span>
+    <span id="version">KIDA v2.4 · RASPBERRY PI</span>
   </footer>
 
 </div>
-<script src="/static/main.js"></script>
+<script src="/static/js/main.js"></script>
 </body>
 </html>

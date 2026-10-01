@@ -1,309 +1,223 @@
-/* ── KIDA Remote Control — app.js ───────────────────────────────────────────── */
+/* KIDA HUD — browser twin of the robot's ui.py window.
+   State comes from /status (ui.py publishes it every frame) and
+   /control/stats/; every key/click is POSTed to /command as the same
+   string ui.py's command processor takes. Bindings match ui.py. */
 
-// ── State ──────────────────────────────────────────────────────────────────────
-let currentMode   = 'USER';
-let currentScheme = 1;
-let currentSpeed  = 0.6;
-let musicPlaying  = false;
-let videoRec      = false;
-let direction     = 'STOPPED';
-let frameCount    = 0;
-let waveAnim      = 0;
+const MODES       = ['USER', 'AUTONOMOUS', 'LINE'];
+const NATIVE_W    = 320, NATIVE_H = 240;
+const HEARTBEAT   = 250;   // ms — the robot stops a remote drive unheard for 800 ms
+const $           = id => document.getElementById(id);
 
-const PORT = 5003;
+let S = {};                // last /status
+let connected = false;
+let frame = 0;
 
-// ── Waveform init ──────────────────────────────────────────────────────────────
-function initWave(id, n) {
-  const el = document.getElementById(id);
-  el.innerHTML = '';
-  for (let i = 0; i < n; i++) {
-    const b = document.createElement('div');
-    b.className = 'wbar';
-    el.appendChild(b);
-  }
+// ── Build the static bits (LED dots, waveform bars) ─────────────────────────
+for (let i = 0; i < 8; i++) $('led-dots').appendChild(Object.assign(document.createElement('i'), { className: 'led' }));
+for (let i = 0; i < 22; i++) $('wave').appendChild(document.createElement('i'));
+
+// ── Commands ─────────────────────────────────────────────────────────────────
+function send(command) {
+  fetch('/command', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ command }), keepalive: true,
+  }).catch(() => {});
 }
-initWave('waveform', 24);
-initWave('centre-wave', 80);
+const mode    = () => S.mode || 'USER';
+const isUser  = () => mode() === 'USER';
+const modeCmd = m => `_mode_${m.toLowerCase()}`;
 
-// ── Animation loop ─────────────────────────────────────────────────────────────
-function animateWaves() {
-  waveAnim++;
-  document.querySelectorAll('#waveform .wbar').forEach((b, i) => {
-    b.style.height = (musicPlaying
-      ? Math.round((Math.sin(waveAnim * 0.12 + i * 0.32) * 0.5 + 0.5) * 24 + 3)
-      : 2) + 'px';
+// ── Buttons ──────────────────────────────────────────────────────────────────
+document.querySelectorAll('[data-cmd]').forEach(b => b.addEventListener('click', () => {
+  if (b.hasAttribute('data-user') && !isUser()) return;   // ui.py: USER-mode only
+  send(b.dataset.cmd);
+}));
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => send(`_mode_${b.dataset.mode}`)));
+$('btn-skip').addEventListener('click', () => { if (S.music_playing) send('skip_music'); });
+
+// D-pad: hold to drive (resent), release stops — same as ui.py with the mouse
+let holdDir = null;
+document.querySelectorAll('.dp').forEach(b => {
+  b.addEventListener('pointerdown', e => {
+    if (!isUser()) return;
+    b.setPointerCapture(e.pointerId);
+    holdDir = b.dataset.dir === 'stop' ? null : b.dataset.dir;
+    if (!holdDir) send('stop');
+    updateDrive();
   });
-  document.querySelectorAll('#centre-wave .wbar').forEach((b, i) => {
-    b.style.height = (musicPlaying
-      ? Math.round((Math.sin(waveAnim * 0.1 + i * 0.2) * 0.5 + 0.5) * 26 + 3)
-      : 2) + 'px';
-  });
-  document.getElementById('sb-frame').textContent = ++frameCount;
-  requestAnimationFrame(animateWaves);
-}
-animateWaves();
-
-// ── QR code ────────────────────────────────────────────────────────────────────
-(function () {
-  const url = `http://${location.hostname}:${PORT}`;
-  document.getElementById('qr-url').textContent = url;
-  document.getElementById('qr-img').src =
-    `https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=${encodeURIComponent(url)}`;
-})();
-
-// ── API helpers ────────────────────────────────────────────────────────────────
-async function sendCmd(cmd) {
-  try {
-    await fetch('/command', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command: cmd }),
-    });
-  } catch (e) {}
-}
-
-async function apiFetch(path, body) {
-  try {
-    await fetch(path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-  } catch (e) {}
-}
-
-// ── D-pad ──────────────────────────────────────────────────────────────────────
-function dpadDown(dir) {
-  document.querySelectorAll('.dp-btn').forEach(b => b.classList.remove('pressed'));
-  document.querySelector(`[data-dir="${dir}"]`)?.classList.add('pressed');
-  sendCmd(dir === 'stop' ? 'stop' : dir);
-  updateDirection(dir.toUpperCase());
-  if (dir !== 'stop') {
-    clearInterval(window._heldInterval);
-    window._heldInterval = setInterval(() => sendCmd(dir), 150);
-  }
-}
-
-function dpadUp() {
-  clearInterval(window._heldInterval);
-  document.querySelectorAll('.dp-btn').forEach(b => b.classList.remove('pressed'));
-}
-
-// ── Mode ───────────────────────────────────────────────────────────────────────
-function setMode(m) {
-  currentMode = m;
-  const modes = ['USER', 'AUTONOMOUS', 'LINE', 'FACE'];
-  document.querySelectorAll('.tab').forEach((t, i) =>
-    t.classList.toggle('active', modes[i] === m));
-  apiFetch('/mode', { mode: m });
-  updateModeUI();
-}
-
-function updateModeUI() {
-  const ov  = document.getElementById('mode-overlay');
-  const fso = document.getElementById('face-scan-overlay');
-  const fr  = document.getElementById('face-results');
-
-  fso.classList.toggle('show', currentMode === 'FACE');
-  fr.classList.toggle('show',  currentMode === 'FACE');
-
-  if (currentMode === 'AUTONOMOUS') {
-    ov.textContent = '— AUTONOMOUS —';
-    ov.style.color = 'var(--teal)';
-    ov.classList.add('show');
-  } else if (currentMode === 'LINE') {
-    ov.textContent = '— LINE FOLLOW —';
-    ov.style.color = 'var(--blue)';
-    ov.classList.add('show');
-  } else {
-    ov.classList.remove('show');
-  }
-
-  const me = document.getElementById('ci-mode');
-  me.textContent  = currentMode;
-  me.style.color  = currentMode === 'FACE' ? 'var(--purple)' : '';
-  document.getElementById('sb-mode').textContent = currentMode;
-}
-
-// ── Speed ──────────────────────────────────────────────────────────────────────
-function setSpeed(s) {
-  currentSpeed = s;
-  document.querySelectorAll('#speed-btns .btn').forEach(b =>
-    b.classList.toggle('active', parseFloat(b.dataset.spd) === s));
-  document.getElementById('ci-spd').textContent   = s.toFixed(1);
-  document.getElementById('sb-speed').textContent = s.toFixed(1);
-  apiFetch('/speed', { speed: s });
-}
-
-// ── Control scheme ─────────────────────────────────────────────────────────────
-function setScheme(s) {
-  currentScheme = s;
-  document.getElementById('sch-wasd').classList.toggle('active', s === 1);
-  document.getElementById('sch-tank').classList.toggle('active', s === 2);
-}
-
-// ── Music ──────────────────────────────────────────────────────────────────────
-function toggleMusic() {
-  musicPlaying = !musicPlaying;
-  const btn = document.getElementById('btn-play');
-  btn.textContent = musicPlaying ? 'PAUSE' : 'PLAY';
-  btn.classList.toggle('active', musicPlaying);
-  sendCmd(musicPlaying ? 'play_music' : 'stop_music');
-  document.getElementById('waveform').classList.toggle('playing', musicPlaying);
-  document.getElementById('centre-wave').classList.toggle('playing', musicPlaying);
-  document.getElementById('track-name').classList.toggle('playing', musicPlaying);
-}
-
-// ── Video ──────────────────────────────────────────────────────────────────────
-function toggleVideo() {
-  videoRec = !videoRec;
-  document.getElementById('btn-video').textContent = videoRec ? '⏹ STOP' : '⏺ REC';
-  document.getElementById('btn-video').classList.toggle('active', videoRec);
-  document.getElementById('rec-badge').classList.toggle('show', videoRec);
-  sendCmd(videoRec ? 'video_start' : 'video_stop');
-}
-
-// ── Direction ──────────────────────────────────────────────────────────────────
-function updateDirection(dir) {
-  direction = dir;
-  const el = document.getElementById('ci-dir');
-  el.textContent = dir;
-  el.classList.toggle('moving', dir !== 'STOPPED');
-  document.querySelectorAll('.dp-btn').forEach(b =>
-    b.classList.toggle('active-dir', b.dataset.dir?.toUpperCase() === dir && dir !== 'STOPPED'));
-}
-
-// ── LEDs ───────────────────────────────────────────────────────────────────────
-function updateLeds(color) {
-  const [r, g, b] = color;
-  const on  = r > 10 || g > 10 || b > 10;
-  const hex = on ? `rgb(${r},${g},${b})` : '';
-  document.querySelectorAll('.led-dot').forEach(d => {
-    d.style.background  = on ? hex : 'var(--dim)';
-    d.style.boxShadow   = on ? `0 0 8px ${hex}` : '';
-  });
-}
-
-// ── Face cards ─────────────────────────────────────────────────────────────────
-function renderFaceCards(results) {
-  const c = document.getElementById('face-results');
-  c.innerHTML = '';
-  if (!results || !results.length) {
-    const e = document.createElement('div');
-    e.style.cssText = 'color:var(--dim);font-size:11px;padding:4px 0;';
-    e.textContent = 'No faces detected';
-    c.appendChild(e);
-    return;
-  }
-  results.forEach((f, i) => {
-    const w    = f.gender === 'Woman';
-    const card = document.createElement('div');
-    card.className = `face-card ${w ? 'woman' : 'man'}`;
-    card.innerHTML = `
-      <span class="fc-icon">${w ? '👩' : '👨'}</span>
-      <div class="fc-info">
-        <span class="fc-gender">#${i + 1} ${f.gender || '?'}</span>
-        <span class="fc-age">Age ~${f.age || '?'} yrs</span>
-      </div>
-      <span class="fc-conf">${f.conf ? f.conf.toFixed(0) + '%' : ''}</span>`;
-    c.appendChild(card);
-  });
-}
-
-// ── Keyboard ───────────────────────────────────────────────────────────────────
-const keyMap = {
-  w: 'forward', s: 'backward', a: 'left', d: 'right', ' ': 'stop',
-  ArrowUp: 'forward', ArrowDown: 'backward', ArrowLeft: 'left', ArrowRight: 'right',
-};
-const held = new Set();
-
-document.addEventListener('keydown', e => {
-  if (held.has(e.key)) return;
-  held.add(e.key);
-  const dir = keyMap[e.key];
-  if (dir) { sendCmd(dir); updateDirection(dir.toUpperCase()); }
-  if (e.key === 'm') toggleMusic();
-  if (e.key === 'c') sendCmd('photo');
-  if (e.key === 'v') toggleVideo();
-  if (e.key === 'f') setMode(currentMode === 'FACE' ? 'USER' : 'FACE');
-  if (e.key === 'u') setMode('USER');
-  if (e.key === 'o') setMode('AUTONOMOUS');
-  if (e.key === 'l') setMode('LINE');
-  if (e.key === 'x') {
-    const ss = [0.4, 0.6, 0.8, 1.0];
-    setSpeed(ss[(ss.indexOf(currentSpeed) + 1) % ss.length]);
-  }
-  if (e.key === '1') setScheme(1);
-  if (e.key === '2') setScheme(2);
+  const up = () => { holdDir = null; updateDrive(); };
+  b.addEventListener('pointerup', up);
+  b.addEventListener('pointercancel', up);
 });
-document.addEventListener('keyup', e => held.delete(e.key));
 
-// ── Polling ────────────────────────────────────────────────────────────────────
+// ── Keyboard (ui.py bindings) ────────────────────────────────────────────────
+const held = new Set();
+document.addEventListener('keydown', e => {
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (k === 'Tab' || k === ' ') e.preventDefault();
+  if ('wasdq'.includes(k) && k.length === 1) { held.add(k); updateDrive(); }
+  if (e.repeat) return;
+
+  if      (k === 'Tab') send(modeCmd(MODES[(MODES.indexOf(mode()) + 1) % 3] || 'USER'));
+  else if (k === 'm')   send('play_music');
+  else if (k === ' ')   send('stop_music');
+  else if (k === 'u')   send(modeCmd('USER'));
+  else if (k === 'o')   send(modeCmd('AUTONOMOUS'));
+  else if (k === 'l')   send(modeCmd('LINE'));
+  else if (isUser()) {
+    if      (k === 'x') send('speed');
+    else if (k === '1') send('scheme_1');
+    else if (k === '2') send('scheme_2');
+    else if (k === 'c') send('photo');
+    else if (k === 'v') send('video_toggle');
+    else if (k === 's') send('face_save');
+  }
+});
+document.addEventListener('keyup', e => { held.delete(e.key.toLowerCase()); updateDrive(); });
+window.addEventListener('blur', () => { held.clear(); holdDir = null; updateDrive(); });
+
+// ── Drive intent: sent on change, resent while held, "stop" on release ───────
+let lastSent = null, lastBeat = 0;
+function driveIntent() {
+  if (!isUser()) return null;
+  const h = k => held.has(k);
+  if ((S.ctrl_scheme || 1) === 1 && ['w', 's', 'a', 'd'].some(h))
+    return h('w') ? 'forward' : h('s') ? 'backward' : h('a') ? 'left' : 'right';
+  if (S.ctrl_scheme === 2 && ['q', 'a', 'w', 's'].some(h))
+    return `tank:${h('q') ? 1 : h('a') ? -1 : 0}:${h('w') ? 1 : h('s') ? -1 : 0}`;
+  return holdDir;
+}
+function updateDrive() {
+  const intent = driveIntent(), now = performance.now();
+  if (intent !== lastSent) { send(intent || 'stop'); lastSent = intent; lastBeat = now; }
+  else if (intent && now - lastBeat >= HEARTBEAT) { send(intent); lastBeat = now; }
+}
+setInterval(updateDrive, 50);
+
+// ── Render /status ───────────────────────────────────────────────────────────
+const setText = (id, v) => { const el = $(id); if (el.textContent !== String(v)) el.textContent = v; };
+const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+
+function renderStatus() {
+  const m = mode(), dir = S.direction || 'STOPPED', spd = (S.speed ?? 0.4).toFixed(1);
+  const scheme = (S.ctrl_scheme || 1) === 1 ? 'WASD' : 'QA/WS';
+  const led = S.led || [0, 0, 0], faces = S.faces || [], music = !!S.music_playing;
+
+  // tabs / mode overlay
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', MODES[i] === m));
+  const ov = $('mode-ov');
+  ov.classList.toggle('on', m === 'AUTONOMOUS' || m === 'LINE');
+  ov.textContent = m === 'AUTONOMOUS' ? '— AUTONOMOUS —' : '— LINE FOLLOW —';
+  ov.style.color = m === 'AUTONOMOUS' ? 'var(--teal)' : 'var(--blue)';
+
+  // LEDs
+  const lit = led.some(c => c > 10);
+  document.querySelectorAll('.led').forEach(d => d.style.background = lit ? rgb(led) : '');
+
+  // info strip
+  setText('i-dir', dir); $('i-dir').style.color = dir !== 'STOPPED' ? 'var(--amber)' : 'var(--sec)';
+  setText('i-spd', spd);
+  setText('i-sch', scheme);
+  if (m === 'FACE') { setText('i-4l', 'FACES'); setText('i-4v', `FACES ${faces.length}`); $('i-4v').style.color = 'var(--purple)'; }
+  else              { setText('i-4l', 'LED');   setText('i-4v', `R${led[0]} G${led[1]} B${led[2]}`); $('i-4v').style.color = 'var(--sec)'; }
+
+  // right panel
+  document.querySelectorAll('.dp').forEach(b => b.classList.toggle('cur', b.dataset.dir !== 'stop' && b.dataset.dir.toUpperCase() === dir));
+  document.querySelectorAll('#speeds .hb').forEach((b, i) => b.classList.toggle('active', (S.speed_idx || 0) === i));
+  $('sch-1').classList.toggle('active', (S.ctrl_scheme || 1) === 1);
+  $('sch-2').classList.toggle('active', S.ctrl_scheme === 2);
+  const v = $('btn-video');
+  setText('btn-video', S.video_rec ? 'STOP REC' : 'REC');
+  v.classList.toggle('active', !!S.video_rec); v.classList.toggle('danger', !!S.video_rec);
+  const scan = S.face_scan !== false;
+  setText('btn-scan', scan ? 'SCAN OFF' : 'SCAN ON');
+  $('btn-scan').classList.toggle('active', scan);
+
+  // camera overlays
+  $('rec').classList.toggle('on', !!S.video_rec);
+  $('deepface-missing').style.display = scan && !faces.length && S.deepface_ok === false ? 'block' : 'none';
+  renderFaces(scan ? faces : []);
+
+  // music
+  setText('btn-play', music ? 'PAUSE' : 'PLAY');
+  $('btn-play').classList.toggle('active', music);
+  setText('track', (S.track || 'No track').slice(0, 22));
+  $('track').classList.toggle('on', music);
+  $('wave').classList.toggle('on', music);
+
+  // bottom bar
+  setText('sb-mode', m); setText('sb-sch', scheme); setText('sb-spd', spd);
+  setText('sb-faces', faces.length); $('sb-faces').classList.toggle('hot', faces.length > 0);
+  setText('sb-frm', S.frame ?? 0);
+}
+
+function renderFaces(faces) {
+  const box = $('faces');
+  box.innerHTML = '';
+  for (const f of faces) {
+    const r = f.region || {};
+    if (!r.w || !r.h) continue;
+    const el = document.createElement('div');
+    el.className = 'fbox';
+    el.style.cssText = `left:${r.x / NATIVE_W * 100}%;top:${r.y / NATIVE_H * 100}%;` +
+                       `width:${r.w / NATIVE_W * 100}%;height:${r.h / NATIVE_H * 100}%;` +
+                       `--fc:${f.gender === 'Woman' ? 'var(--purple)' : 'var(--teal)'}`;
+    const tag = document.createElement('b');
+    tag.textContent = `${(f.gender || '?')[0]}  ${f.age || 0}y  ${(f.conf || 0).toFixed(0)}%`;
+    el.appendChild(tag);
+    box.appendChild(el);
+  }
+}
+
+// ── Render /control/stats/ ───────────────────────────────────────────────────
+function renderStats(s) {
+  const cpu = s.cpu || 0, temp = s.temp || 0, ru = s.ram_used || 0, rt = s.ram_total || 1;
+  setText('v-thr', s.threads || 0);
+  setText('v-temp', `${temp.toFixed(0)}C`); $('v-temp').classList.toggle('warn', temp > 65);
+  setText('v-cpu', `${cpu.toFixed(0)}%`);
+  setText('s-cpu', `${cpu.toFixed(0)}%`);   $('b-cpu').style.width  = `${Math.min(cpu, 100)}%`;
+  setText('s-temp', `${temp.toFixed(0)}°C`); $('b-temp').style.width = `${Math.min(temp / 85 * 100, 100)}%`;
+  setText('s-ram', `${ru}/${rt}M`);          $('b-ram').style.width  = `${Math.min(ru / rt * 100, 100)}%`;
+  setText('n-lat', s.latency || 'N/A');
+  setText('n-thr', s.threads || 0);
+  setText('n-dr', `${s.disk_read || 0} MB`);
+  setText('n-dw', `${s.disk_write || 0} MB`);
+  setText('n-boot', s.boot_time || '--:--');
+  if (s.ip && s.ip !== 'N/A') setText('ip', s.ip);
+}
+
+// ── Polling ──────────────────────────────────────────────────────────────────
 async function pollStatus() {
   try {
-    const d = await (await fetch('/status')).json();
-    updateDirection(d.direction || 'STOPPED');
-    if (d.led) updateLeds(d.led);
-
-    const fc = d.face_count || 0;
-    const fe = document.getElementById('ci-faces');
-    fe.textContent = fc;
-    fe.classList.toggle('purple', fc > 0);
-    document.getElementById('sb-faces').textContent = fc;
-
-    if (d.music_playing !== musicPlaying) {
-      musicPlaying = d.music_playing;
-      document.getElementById('btn-play').textContent = musicPlaying ? 'PAUSE' : 'PLAY';
-      document.getElementById('btn-play').classList.toggle('active', musicPlaying);
-      document.getElementById('waveform').classList.toggle('playing', musicPlaying);
-      document.getElementById('centre-wave').classList.toggle('playing', musicPlaying);
-    }
-    if (d.video_rec !== videoRec) {
-      videoRec = d.video_rec;
-      document.getElementById('btn-video').textContent = videoRec ? '⏹ STOP' : '⏺ REC';
-      document.getElementById('btn-video').classList.toggle('active', videoRec);
-      document.getElementById('rec-badge').classList.toggle('show', videoRec);
-    }
-  } catch (e) {}
+    S = await (await fetch('/status', { cache: 'no-store' })).json();
+    connected = true;
+    renderStatus();
+  } catch (e) { connected = false; }
+  $('nolink').classList.toggle('on', !connected);
+  $('ping').classList.toggle('off', !connected);
+  setTimeout(pollStatus, 250);
 }
-
 async function pollStats() {
-  try {
-    const s = (await (await fetch('/control/stats/')).json()).stats || {};
-    const cpu  = (s.cpu  || 0).toFixed(0);
-    const temp = (s.temp || 0).toFixed(0);
-    const ru   = s.ram_used  || 0;
-    const rt   = s.ram_total || 1;
-
-    document.getElementById('val-cpu').textContent   = cpu  + '%';
-    document.getElementById('val-temp').textContent  = temp + '°C';
-    document.getElementById('val-thr').textContent   = s.threads || '–';
-    document.getElementById('stat-cpu').textContent  = cpu  + '%';
-    document.getElementById('stat-temp').textContent = temp + '°C';
-    document.getElementById('stat-ram').textContent  = `${ru}/${rt}M`;
-    document.getElementById('bar-cpu').style.width   = cpu + '%';
-    document.getElementById('bar-temp').style.width  = (parseFloat(temp) / 85 * 100).toFixed(0) + '%';
-    document.getElementById('bar-ram').style.width   = (ru / rt * 100).toFixed(0) + '%';
-    document.getElementById('net-lat').textContent   = s.latency   || '–';
-    document.getElementById('net-thr').textContent   = s.threads   || '–';
-    document.getElementById('net-dr').textContent    = (s.disk_read  || 0) + ' MB';
-    document.getElementById('net-dw').textContent    = (s.disk_write || 0) + ' MB';
-    document.getElementById('net-boot').textContent  = s.boot_time  || '–';
-
-    document.getElementById('chip-temp').classList.toggle('warn', parseFloat(temp) > 65);
-  } catch (e) {}
+  try { renderStats((await (await fetch('/control/stats/', { cache: 'no-store' })).json()).stats || {}); }
+  catch (e) {}
+  setTimeout(pollStats, 2000);
 }
-
-async function pollFaces() {
-  if (currentMode !== 'FACE') return;
-  try {
-    const d = await (await fetch('/face/results')).json();
-    if (d.results) renderFaceCards(d.results);
-  } catch (e) {}
-}
-
-setInterval(pollStatus, 800);
-setInterval(pollStats,  2000);
-setInterval(pollFaces,  1500);
 pollStatus();
 pollStats();
+
+// Camera stream: reconnect if the MJPEG drops
+$('cam-img').addEventListener('error', () => setTimeout(() => { $('cam-img').src = `/video_feed?t=${Date.now()}`; }, 1500));
+
+// ── Animation (25 fps like ui.py): waveform + face scan line ─────────────────
+const waveBars = [...document.querySelectorAll('#wave i')];
+setInterval(() => {
+  frame++;
+  const playing = !!S.music_playing;
+  waveBars.forEach((b, i) => {
+    b.style.height = playing ? `${Math.round((Math.sin(frame * 0.12 + i * 0.3) * 0.5 + 0.5) * 30 * 0.85 + 3)}px` : '3px';
+  });
+  const sl = $('scanline');
+  const showScan = S.face_scan !== false && !(S.faces || []).length && S.deepface_ok !== false;
+  sl.style.display = showScan ? 'block' : 'none';
+  if (showScan) sl.style.top = `${(Math.sin(frame * 0.08) * 0.5 + 0.5) * 100}%`;
+}, 40);

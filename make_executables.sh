@@ -17,6 +17,7 @@ FILES=(
     "clear_commits.sh"
     "filetree.sh"
     "activate_environment.sh"
+    "install_service.sh"
     "app_test.sh"
 )
 
