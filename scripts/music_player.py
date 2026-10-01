@@ -40,6 +40,7 @@ class MusicPlayer:
         _init_mixer()
 
         self.current_track: str = ""
+        self.current_path:  str = ""     # full path of current_track (for the waveform analyser)
         self.playing:       bool = False
         self.paused:        bool = False
 
@@ -50,7 +51,7 @@ class MusicPlayer:
         pygame.mixer.music.set_endevent(self.SONG_END)
 
         pattern = os.path.join(folder, "*.mp3")
-        self._playlist = glob.glob(pattern)
+        self._playlist = sorted(glob.glob(pattern))   # glob order is arbitrary
 
         if not self._playlist:
             logger.warning("No .mp3 files found in %s", folder)
@@ -76,6 +77,7 @@ class MusicPlayer:
             pygame.mixer.music.load(path)
             pygame.mixer.music.play()
             self.current_track = os.path.basename(path)
+            self.current_path  = path
             self.playing        = True
             self.paused         = False
             logger.info("Now playing: %s", self.current_track)
@@ -88,6 +90,7 @@ class MusicPlayer:
         self.playing        = False
         self.paused         = False
         self.current_track  = ""
+        self.current_path   = ""
         logger.debug("Music stopped")
 
     def pause(self) -> None:
@@ -106,6 +109,9 @@ class MusicPlayer:
             return
         if self._manual_stop:
             self._manual_stop = False
+            return
+        if pygame.mixer.music.get_busy():
+            # A skip already started the next track — this is the old one's end
             return
         logger.debug("Track ended — advancing")
         self.play_next()

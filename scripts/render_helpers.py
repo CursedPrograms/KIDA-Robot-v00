@@ -8,21 +8,30 @@ No mutable global state — everything is passed as arguments.
 import math
 import pygame
 from mode_control import Mode
+from colour_scheme import rgb
 
-# ── Palette ───────────────────────────────────────────────────────────────────
-BG     = (8,   9,  13)
-PANEL  = (14,  15,  22)
-BORDER = (32,  35,  52)
-ACCENT = (255,  30, 100)
-GREEN  = (29,  200, 120)
-BLUE   = (55,  138, 221)
-AMBER  = (255, 160,  40)
-RED    = (226,  75,  74)
-TEAL   = (20,  200, 170)
-PURPLE = (160,  80, 240)
-PRI    = (230, 230, 225)
-SEC    = (130, 132, 125)
-DIM    = (60,   62,  75)
+# ── Palette — from colour_scheme.xml (repo root) ──────────────────────────────
+BG       = rgb("background")
+GRID     = rgb("grid")
+PANEL    = rgb("panel")
+BOT_BG   = rgb("bottom_bar")
+CAM_BG   = rgb("camera_bg")
+BORDER   = rgb("border")
+DIVIDER  = rgb("divider")
+TRACK    = rgb("track")
+LED_OFF  = rgb("led_off")
+PRI      = rgb("text")
+SEC      = rgb("text_sec")
+DIM      = rgb("text_dim")
+ACCENT   = rgb("accent")
+HOVER_BG = rgb("button_hover_bg")
+DANGER_BG = rgb("danger_bg")
+GREEN    = rgb("green")
+BLUE     = rgb("blue")
+AMBER    = rgb("amber")
+RED      = rgb("red")
+TEAL     = rgb("teal")
+PURPLE   = rgb("purple")
 
 
 # ── Primitives ─────────────────────────────────────────────────────────────────
@@ -38,7 +47,7 @@ def txt(surf, font, text, pos, color=PRI, anchor="topleft"):
     surf.blit(s, r)
     return r
 
-def bar(surf, r, pct, color, track=(18, 20, 32)):
+def bar(surf, r, pct, color, track=TRACK):
     pygame.draw.rect(surf, track, r, border_radius=3)
     fw = max(int(r.width * min(pct, 1.0)), 0)
     if fw:
@@ -50,9 +59,9 @@ def led_dot(surf, pos, color, r=6):
 def btn(surf, font, label, r, mouse, active=False, danger=False, hover_col=ACCENT):
     hov = r.collidepoint(mouse)
     if danger:
-        bc, bd, tc = (28, 10, 10), RED, RED
+        bc, bd, tc = DANGER_BG, RED, RED
     elif hov or active:
-        bc, bd, tc = (22, 10, 18), hover_col, hover_col
+        bc, bd, tc = HOVER_BG, hover_col, hover_col
     else:
         bc, bd, tc = PANEL, BORDER, SEC
     pygame.draw.rect(surf, bc, r, border_radius=8)
@@ -206,9 +215,7 @@ def render_top_bar(screen, mode, n_thr, temp_c, st, led_color, tabs, TAB_LABELS,
     screen.blit(logo, (14, (TOP_H - logo.get_height()) // 2))
 
     for i, (tr, tl) in enumerate(zip(tabs, TAB_LABELS)):
-        btn(screen, fbody, tl, tr, mouse,
-            active=(int(mode) == i),
-            hover_col=PURPLE if i == 3 else ACCENT)
+        btn(screen, fbody, tl, tr, mouse, active=(int(mode) == i))
 
     chip_x = W - 14
     for lbl, val, warn in [
@@ -225,8 +232,8 @@ def render_top_bar(screen, mode, n_thr, temp_c, st, led_color, tabs, TAB_LABELS,
         screen.blit(ls, (chip_x, (TOP_H - ls.get_height()) // 2))
         chip_x -= 18
 
+    dc = tuple(led_color) if any(c > 10 for c in led_color) else LED_OFF
     for i in range(8):
-        dc = tuple(led_color) if any(c > 10 for c in led_color) else (28, 30, 44)
         led_dot(screen, (chip_x - 12 - i * 14, TOP_H // 2), dc, r=5)
 
 
@@ -241,6 +248,7 @@ def render_left_panel(screen, qr_surf, local_ip, st,
 
     qr_w = qr_surf.get_width()
     qr_x = lp_x + (lp_w - qr_w) // 2
+    # Always white, not themed — phones can't scan a QR code without a light quiet zone
     pygame.draw.rect(screen, (255, 255, 255),
                      pygame.Rect(qr_x - 4, lp_y - 4, qr_w + 8, qr_w + 8),
                      border_radius=4)
@@ -274,7 +282,7 @@ def render_left_panel(screen, qr_surf, local_ip, st,
     ]:
         txt(screen, flabel_s, label,    (lp_x, lp_y), DIM)
         txt(screen, fmono_sm, str(val), (lp_x + lp_w, lp_y), SEC, anchor="topright")
-        pygame.draw.line(screen, (22, 24, 36),
+        pygame.draw.line(screen, DIVIDER,
                          (lp_x, lp_y + 20), (lp_x + lp_w, lp_y + 20))
         lp_y += 24
 
@@ -290,7 +298,7 @@ def render_left_panel(screen, qr_surf, local_ip, st,
              playing=music_playing, amplitudes=amplitudes)
     lp_y += 38
     btn(screen, fbody, "PAUSE" if music_playing else "PLAY", btn_play, mouse, active=music_playing)
-    btn(screen, fbody, "SKIP ▶", btn_skip, mouse)
+    btn(screen, fbody, "SKIP ►", btn_skip, mouse)   # ► — Windows Arial has no ▶
 
 
 def render_right_panel(screen, mode, direction, speed_idx, ctrl_scheme,
@@ -325,10 +333,10 @@ def render_right_panel(screen, mode, direction, speed_idx, ctrl_scheme,
 
 
 def render_bottom_bar(screen, mode, ctrl_scheme, speed, face_count, frame,
-                      W, H, BOT_H, fmono_xs):
+                      W, H, BOT_H, fmono_xs, online=True):
     sb_y = H - BOT_H
     hline(screen, sb_y, 0, W)
-    pygame.draw.circle(screen, GREEN, (14, sb_y + BOT_H // 2), 5)
+    pygame.draw.circle(screen, GREEN if online else RED, (14, sb_y + BOT_H // 2), 5)
     sx = 28
     for lbl, val in [
         ("FLASK",  ":5003"),
@@ -355,10 +363,10 @@ def build_background(W: int, H: int, TOP_H: int, BOT_H: int, L_W: int, R_W: int)
     bg = pygame.Surface((W, H))
     bg.fill(BG)
     for gx in range(0, W + 1, 44):
-        pygame.draw.line(bg, (14, 8, 12), (gx, 0), (gx, H))
+        pygame.draw.line(bg, GRID, (gx, 0), (gx, H))
     for gy in range(0, H + 1, 44):
-        pygame.draw.line(bg, (14, 8, 12), (0, gy), (W, gy))
+        pygame.draw.line(bg, GRID, (0, gy), (W, gy))
     pygame.draw.rect(bg, PANEL, pygame.Rect(0,     TOP_H, L_W,   H - TOP_H - BOT_H))
     pygame.draw.rect(bg, PANEL, pygame.Rect(W-R_W, TOP_H, R_W,   H - TOP_H - BOT_H))
-    pygame.draw.rect(bg, (10, 11, 16), pygame.Rect(0, H - BOT_H, W, BOT_H))
+    pygame.draw.rect(bg, BOT_BG, pygame.Rect(0, H - BOT_H, W, BOT_H))
     return bg

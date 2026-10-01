@@ -14,6 +14,7 @@ This is the only controller module that touches the network — the drawing
 is the robot's own render_helpers.py, fed from the fields kept here.
 """
 
+import queue
 import threading
 import time
 
@@ -33,13 +34,17 @@ class RemoteClient:
         self.qr_png    = None
         self.connected = False
         self._running  = True
-        self._session  = requests.Session()
+        self._session  = requests.Session()   # status polling
+        self._cmd_sess = requests.Session()   # commands — sessions aren't thread-safe to share
+        self._outbox   = queue.Queue()   # commands, sent one at a time in order
 
-        for target in (self._poll_status, self._poll_stats, self._stream_cam, self._fetch_qr):
+        for target in (self._poll_status, self._poll_stats, self._stream_cam,
+                       self._fetch_qr, self._send_worker):
             threading.Thread(target=target, daemon=True).start()
 
     def stop(self) -> None:
         self._running = False
+        self._outbox.put(None)           # wake the sender so it can exit
 
     # ── Polling ────────────────────────────────────────────────────────────────
     def _poll_status(self) -> None:
@@ -80,24 +85,42 @@ class RemoteClient:
                 for chunk in resp.iter_content(chunk_size=4096):
                     if not self._running:
                         return
-                    buf  += chunk
-                    start = buf.find(b"\xff\xd8")
-                    end   = buf.find(b"\xff\xd9", start + 2)
-                    if start != -1 and end != -1:
-                        self.jpeg = buf[start:end + 2]
+                    buf += chunk
+                    # Take every complete JPEG in the buffer and keep the newest,
+                    # so the picture never falls behind the live stream
+                    latest = None
+                    while True:
+                        start = buf.find(b"\xff\xd8")
+                        end   = buf.find(b"\xff\xd9", start + 2) if start != -1 else -1
+                        if end == -1:
+                            break
+                        latest = buf[start:end + 2]
+                        buf    = buf[end + 2:]
+                    if latest:
+                        self.jpeg = latest
                         self.jpeg_seq += 1
-                        buf = buf[end + 2:]
+                    if len(buf) > 1_000_000:     # junk with no frame markers
+                        buf = b""
             except Exception:
                 time.sleep(1.0)
 
     # ── Outbound ───────────────────────────────────────────────────────────────
     def send(self, command: str) -> None:
-        """Fire-and-forget, so a slow robot never stalls the HUD."""
-        threading.Thread(target=self.send_now, args=(command,), daemon=True).start()
+        """Fire-and-forget, so a slow robot never stalls the HUD. Commands go
+        out one at a time in order — with a thread each, a "stop" could
+        overtake the "forward" before it and leave the robot driving."""
+        self._outbox.put(command)
+
+    def _send_worker(self) -> None:
+        while self._running:
+            command = self._outbox.get()
+            if command is None:
+                return
+            self.send_now(command)
 
     def send_now(self, command: str) -> bool:
         try:
-            r = requests.post(f"{self.base_url}/command", json={"command": command}, timeout=2)
+            r = self._cmd_sess.post(f"{self.base_url}/command", json={"command": command}, timeout=2)
             return r.ok
         except Exception:
             return False

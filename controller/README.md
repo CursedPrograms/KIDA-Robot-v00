@@ -27,7 +27,7 @@ First run creates `controller/venv` with just `pygame` + `requests`.
 | W A S D (scheme 1) | drive — held keys are resent; release stops |
 | Q A / W S (scheme 2) | left / right track |
 | X / 1 / 2 | speed / WASD scheme / QA-WS scheme |
-| C / V / S | photo / video on-off / save faces |
+| C / V / F | photo / video on-off / save faces |
 | Esc | close (the robot is told to stop) |
 
 Mouse: the tabs, d-pad (hold to drive), speed 1–4, scheme, PHOTO/REC,

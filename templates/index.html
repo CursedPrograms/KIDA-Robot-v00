@@ -5,10 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ this_name }} — KIDA HUD</title>
   <link rel="stylesheet" href="/static/css/styles.css">
+  <!-- colour_scheme.xml as CSS variables — after styles.css so it overrides its defaults -->
+  <link rel="stylesheet" href="/colour_scheme.css">
 </head>
 <body>
 <!-- Mirrors the robot's own window (scripts/ui.py + render_helpers.py):
-     same panels, sizes, palette, labels and key bindings. -->
+     same panels, sizes, colours (colour_scheme.xml), labels and key bindings. -->
 <div id="app">
 
   <!-- ── Top bar (render_top_bar) ─────────────────────────────────────────── -->
@@ -94,10 +96,10 @@
 
     <div class="sec">SPEED</div>
     <div class="row4" id="speeds">
-      <button class="hb mono" data-cmd="speed_1" data-user>1</button>
-      <button class="hb mono" data-cmd="speed_2" data-user>2</button>
-      <button class="hb mono" data-cmd="speed_3" data-user>3</button>
-      <button class="hb mono" data-cmd="speed_4" data-user>4</button>
+      <button class="hb mono" data-cmd="speed_1" data-speed>1</button>
+      <button class="hb mono" data-cmd="speed_2" data-speed>2</button>
+      <button class="hb mono" data-cmd="speed_3" data-speed>3</button>
+      <button class="hb mono" data-cmd="speed_4" data-speed>4</button>
     </div>
 
     <div class="sec">CONTROL SCHEME</div>

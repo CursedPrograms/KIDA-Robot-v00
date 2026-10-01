@@ -9,6 +9,8 @@ import qrcode
 from PIL import Image
 from picamera2 import Picamera2
 
+from colour_scheme import rgb
+
 
 def cam_to_surface(cam: Picamera2, w: int, h: int) -> tuple:
     """Capture a frame, rotate/resize, return (pygame.Surface, PIL.Image|None)."""
@@ -20,7 +22,7 @@ def cam_to_surface(cam: Picamera2, w: int, h: int) -> tuple:
         return pygame.image.fromstring(pil.tobytes(), pil.size, "RGB"), pil
     except Exception:
         s = pygame.Surface((w, h))
-        s.fill((8, 10, 16))
+        s.fill(rgb("camera_bg"))
         return s, None
 
 

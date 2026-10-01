@@ -4,13 +4,18 @@
 
 set -e  # Exit on any error
 
+echo "=== Installing system packages (picamera2, ffmpeg, SPI/I2C) ==="
+# gpio-requirements.txt is a shell script of apt/raspi-config steps, not a pip list
+bash gpio-requirements.txt
+
 echo "=== Setting up Python environment ==="
-python3 -m venv venv
-source venv/bin/activate
+# psdenv is the environment run.sh uses; it needs the system site packages
+# because picamera2 comes from apt
+python3 -m venv --system-site-packages psdenv
+source psdenv/bin/activate
 
 echo "=== Installing Python requirements ==="
 pip install -r requirements.txt
-pip install -r gpio-requirements.txt
 
 echo "=== Updating system and installing hotspot services ==="
 sudo apt update

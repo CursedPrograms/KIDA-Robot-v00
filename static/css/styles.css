@@ -1,22 +1,34 @@
 /* KIDA HUD — the robot's ui.py window as a web page.
-   Sizes and colours are the constants from scripts/hud_layout.py and
-   scripts/render_helpers.py, so the two read as the same screen. */
+   Sizes are the constants from scripts/hud_layout.py, so the two read as the
+   same screen.
+
+   Colours come from colour_scheme.xml (repo root): the server turns it into
+   /colour_scheme.css, linked after this file, which overrides the defaults
+   below. Each role is a variable of the same name (text_dim → --text-dim).
+   Keep these defaults in sync with scripts/colour_scheme.py. */
 
 :root {
-  --bg:     rgb(8, 9, 13);
-  --panel:  rgb(14, 15, 22);
-  --border: rgb(32, 35, 52);
-  --accent: rgb(255, 30, 100);
-  --green:  rgb(29, 200, 120);
-  --blue:   rgb(55, 138, 221);
-  --amber:  rgb(255, 160, 40);
-  --red:    rgb(226, 75, 74);
-  --teal:   rgb(20, 200, 170);
-  --purple: rgb(160, 80, 240);
-  --pri:    rgb(230, 230, 225);
-  --sec:    rgb(130, 132, 125);
-  --dim:    rgb(60, 62, 75);
-  --track:  rgb(18, 20, 32);
+  --background:      #08090D;
+  --grid:            #0E080C;
+  --panel:           #0E0F16;
+  --bottom-bar:      #0A0B10;
+  --camera-bg:       #080A0E;
+  --border:          #202334;
+  --divider:         #161824;
+  --track:           #121420;
+  --led-off:         #1C1E2C;
+  --text:            #E6E6E1;
+  --text-sec:        #82847D;
+  --text-dim:        #3C3E4B;
+  --accent:          #FF1E64;
+  --button-hover-bg: #160A12;
+  --danger-bg:       #1C0A0A;
+  --green:           #1DC878;
+  --blue:            #378ADD;
+  --amber:           #FFA028;
+  --red:             #E24B4A;
+  --teal:            #14C8AA;
+  --purple:          #A050F0;
 
   --top-h: 58px; --bot-h: 42px; --pad: 10px;
   --l-w: 290px;  --r-w: 300px;  --tab-h: 50px;
@@ -29,12 +41,12 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body {
-  background-color: var(--bg);
+  background-color: var(--background);
   background-image:
-    linear-gradient(rgb(14, 8, 12) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(14, 8, 12) 1px, transparent 1px);
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
   background-size: 44px 44px;
-  color: var(--pri);
+  color: var(--text);
   font-family: var(--sans);
   overflow: hidden;
   user-select: none;
@@ -60,10 +72,10 @@ body {
 #logo { font: bold 34px var(--mono); color: var(--accent); }
 #top-right { display: flex; align-items: center; gap: 18px; }
 #led-dots { display: flex; gap: 4px; margin-right: 0; }
-.led { width: 10px; height: 10px; border-radius: 50%; background: rgb(28, 30, 44); }
+.led { width: 10px; height: 10px; border-radius: 50%; background: var(--led-off); }
 .chip { display: flex; align-items: center; gap: 8px; }
-.chip .cl { font: 14px var(--mono); color: var(--dim); }
-.chip .cv { font: bold 20px var(--mono); color: var(--pri); margin-right: 4px; }
+.chip .cl { font: 14px var(--mono); color: var(--text-dim); }
+.chip .cv { font: bold 20px var(--mono); color: var(--text); margin-right: 4px; }
 .chip .cv.warn { color: var(--amber); }
 
 /* ── Panels ─────────────────────────────────────────────────────────────── */
@@ -74,32 +86,33 @@ body {
 .sec {
   position: relative; height: 16px; line-height: 16px;
   margin: 6px 0 4px; padding-left: 9px;
-  font: 14px var(--mono); color: var(--dim);
+  font: 14px var(--mono); color: var(--text-dim);
 }
 .sec::before { content: ""; position: absolute; left: 0; top: 2px; width: 3px; height: 12px; background: var(--accent); }
 .panel > .sec:first-child { margin-top: 0; }
 
 /* Left */
+/* QR frame stays white, not themed — phones need a light quiet zone to scan it */
 #qr-wrap { width: 138px; height: 138px; margin: -4px auto 0; padding: 4px; background: #fff; border-radius: 4px; }
 #qr { width: 130px; height: 130px; display: block; image-rendering: pixelated; }
 #ip   { margin-top: 10px; text-align: center; font: bold 20px var(--mono); color: var(--amber); }
-#port { margin-top: 2px;  text-align: center; font: bold 17px var(--mono); color: var(--sec); white-space: pre; }
-#scan-hint { margin: 14px 0 10px; text-align: center; font: 14px var(--mono); color: var(--dim); }
+#port { margin-top: 2px;  text-align: center; font: bold 17px var(--mono); color: var(--text-sec); white-space: pre; }
+#scan-hint { margin: 14px 0 10px; text-align: center; font: 14px var(--mono); color: var(--text-dim); }
 
 .stat, .net { display: flex; justify-content: space-between; align-items: baseline; }
-.lbl { font: 15px var(--sans); color: var(--dim); }
-.val { font: bold 17px var(--mono); color: var(--sec); }
+.lbl { font: 15px var(--sans); color: var(--text-dim); }
+.val { font: bold 17px var(--mono); color: var(--text-sec); }
 .bar { height: 6px; margin: 2px 0 8px; background: var(--track); border-radius: 3px; overflow: hidden; }
 .bar .fill { height: 100%; width: 0; background: var(--c); border-radius: 3px; transition: width .4s; }
 #left .sec:not(:first-of-type) { margin-top: 12px; }
-.net { height: 24px; border-bottom: 1px solid rgb(22, 24, 36); margin-bottom: 0; }
+.net { height: 24px; border-bottom: 1px solid var(--divider); margin-bottom: 0; }
 
-#track { margin-top: 2px; height: 22px; font: 17px var(--sans); color: var(--sec);
+#track { margin-top: 2px; height: 22px; font: 17px var(--sans); color: var(--text-sec);
          white-space: nowrap; overflow: hidden; }
-#track.on { color: var(--pri); }
+#track.on { color: var(--text); }
 #wave { display: flex; align-items: flex-end; gap: 1px; height: 30px; }
-#wave i { flex: 1; height: 3px; background: rgba(60, 62, 75, .31); }
-#wave.on i { background: rgba(255, 30, 100, .55); }
+#wave i { flex: 1; height: 3px; background: color-mix(in srgb, var(--text-dim) 31%, transparent); }
+#wave.on i { background: color-mix(in srgb, var(--accent) 55%, transparent); }
 
 #music-btns {
   position: absolute; left: var(--pad); right: var(--pad); bottom: 28px;
@@ -129,17 +142,17 @@ body {
 .hb {
   --hc: var(--accent);
   position: relative;
-  background: var(--panel); color: var(--sec);
+  background: var(--panel); color: var(--text-sec);
   border: 1px solid var(--border); border-radius: 8px;
   font: bold 18px var(--sans);
   cursor: pointer; padding: 0;
 }
-.hb:hover, .hb.active { background: rgb(22, 10, 18); border-color: var(--hc); color: var(--hc); }
+.hb:hover, .hb.active { background: var(--button-hover-bg); border-color: var(--hc); color: var(--hc); }
 .hb.active::after {
   content: ""; position: absolute; left: 6px; right: 6px; bottom: 0; height: 3px;
   background: var(--hc); border-radius: 2px;
 }
-.hb.danger, .hb.danger:hover { background: rgb(28, 10, 10); border-color: var(--red); color: var(--red); }
+.hb.danger, .hb.danger:hover { background: var(--danger-bg); border-color: var(--red); color: var(--red); }
 .hb.danger::after { display: none; }
 
 /* ── Centre ─────────────────────────────────────────────────────────────── */
@@ -152,7 +165,7 @@ body {
   margin-top: var(--pad);
   height: calc((100vh - var(--top-h) - var(--bot-h)) * 0.6);
   height: calc((100dvh - var(--top-h) - var(--bot-h)) * 0.6);
-  background: rgb(8, 10, 14);
+  background: var(--camera-bg);
   outline: 1px solid var(--border); outline-offset: 1px;
 }
 #cam-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; display: block; }
@@ -172,10 +185,10 @@ body {
            padding: 4px 8px; background: rgba(0, 0, 0, .55); font: bold 17px var(--mono); white-space: nowrap; }
 #mode-ov.on { display: block; }
 
-#scanline { position: absolute; left: 0; right: 0; height: 1px; background: rgba(160, 80, 240, .22); display: none; }
+#scanline { position: absolute; left: 0; right: 0; height: 1px; background: color-mix(in srgb, var(--purple) 22%, transparent); display: none; }
 #deepface-missing { position: absolute; left: 6px; top: 6px; font: 14px var(--mono); color: var(--red); display: none; }
 #nolink { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
-          font: bold 20px var(--mono); color: var(--red); background: rgba(8, 9, 13, .6); }
+          font: bold 20px var(--mono); color: var(--red); background: color-mix(in srgb, var(--background) 60%, transparent); }
 #nolink.on { display: flex; }
 
 .fbox { position: absolute; border: 2px solid var(--fc); border-radius: 4px; }
@@ -184,22 +197,22 @@ body {
 
 #info { display: flex; gap: 22px; margin-top: 10px; }
 .ii { display: flex; flex-direction: column; }
-.il { font: 14px var(--mono); color: var(--dim); height: 16px; }
-.iv { font: bold 17px var(--mono); color: var(--pri); }
+.il { font: 14px var(--mono); color: var(--text-dim); height: 16px; }
+.iv { font: bold 17px var(--mono); color: var(--text); }
 
 /* ── Bottom bar ─────────────────────────────────────────────────────────── */
 #botbar {
   grid-area: bot; display: flex; align-items: center;
-  background: rgb(10, 11, 16); border-top: 1px solid var(--border);
+  background: var(--bottom-bar); border-top: 1px solid var(--border);
   padding: 0 12px 0 9px; font: 14px var(--mono); white-space: nowrap; overflow: hidden;
 }
 #ping { width: 10px; height: 10px; border-radius: 50%; background: var(--green); margin-right: 9px; flex: none; }
 #ping.off { background: var(--red); }
 .sb { display: flex; gap: 5px; padding-right: 8px; margin-right: 6px; border-right: 1px solid var(--border); line-height: 30px; }
-.sb b { font-weight: normal; color: var(--dim); }
-.sb em { font-style: normal; color: var(--sec); }
+.sb b { font-weight: normal; color: var(--text-dim); }
+.sb em { font-style: normal; color: var(--text-sec); }
 .sb em.hot { color: var(--purple); }
-#version { margin-left: auto; color: var(--dim); }
+#version { margin-left: auto; color: var(--text-dim); }
 
 /* ── Narrow screens (phones): stack the panels, camera first ───────────────── */
 @media (max-width: 960px) {

@@ -35,7 +35,7 @@ from render_helpers import (
     hline, vline, txt,
     render_camera, render_info_strip, render_top_bar,
     render_left_panel, render_right_panel, render_bottom_bar,
-    build_background, RED,
+    build_background, RED, CAM_BG,
 )
 from remote_client  import RemoteClient
 
@@ -94,7 +94,7 @@ def run_controller() -> None:
     def relayout(w, h):
         lay = hud_layout.compute_layout(w, h)
         bg  = build_background(w, h, lay["TOP_H"], lay["BOT_H"], lay["L_W"], lay["R_W"])
-        cs  = pygame.Surface((lay["CAM_W"], lay["CAM_H"]));  cs.fill((8, 10, 14))
+        cs  = pygame.Surface((lay["CAM_W"], lay["CAM_H"]));  cs.fill(CAM_BG)
         return lay, bg, cs
 
     lay, bg_surf, cam_surf = relayout(W, H)
@@ -108,8 +108,8 @@ def run_controller() -> None:
     last_sent = None     # last drive intent sent
     last_beat = 0.0
 
-    print("Keys (same as the robot): TAB=cycle mode  U/O/L=user/auto/line  M=music  SPACE=stop music")
-    print("   USER mode: WASD or QA/WS drive  X=speed  1/2=scheme  C=photo  V=video  S=save faces  ESC=quit")
+    print("Keys (same as the robot): TAB=cycle mode  U/O/L=user/auto/line  M=music  SPACE=stop music  X=speed (user + auto)")
+    print("   USER mode: WASD or QA/WS drive  1/2=scheme  C=photo  V=video  F=save faces  ESC=quit")
 
     running = True
     while running:
@@ -197,7 +197,8 @@ def run_controller() -> None:
                            TOP_H, PAD, mouse, fmono_md, fmono_xs, fbody, fdpad)
 
         render_bottom_bar(screen, mode, ctrl_scheme, speed, len(faces),
-                          status.get("frame", frame), W, H, BOT_H, fmono_xs)
+                          status.get("frame", frame), W, H, BOT_H, fmono_xs,
+                          online=remote.connected)
 
         if not remote.connected:
             txt(screen, fmono_md, "[ NO CONNECTION TO ROBOT ]",
@@ -234,13 +235,14 @@ def run_controller() -> None:
                     remote.send(_mode_cmd(Mode.AUTONOMOUS))
                 elif k == pygame.K_l:
                     remote.send(_mode_cmd(Mode.LINE))
+                elif k == pygame.K_x and mode in (Mode.USER, Mode.AUTONOMOUS):
+                    remote.send("speed")   # autonomous cruises at the selected speed too
                 elif mode == Mode.USER:
-                    if   k == pygame.K_x: remote.send("speed")
-                    elif k == pygame.K_1: remote.send("scheme_1")
+                    if   k == pygame.K_1: remote.send("scheme_1")
                     elif k == pygame.K_2: remote.send("scheme_2")
                     elif k == pygame.K_c: remote.send("photo")
                     elif k == pygame.K_v: remote.send("video_toggle")
-                    elif k == pygame.K_s: remote.send("face_save")
+                    elif k == pygame.K_f: remote.send("face_save")   # not S — that drives
 
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 pos = event.pos
@@ -254,12 +256,14 @@ def run_controller() -> None:
                             hold_dir = None if cmd == "stop" else cmd
                             if cmd == "stop":
                                 remote.send("stop")
-                    for i, r in enumerate(lay["spd_dots"]):
-                        if r.collidepoint(pos): remote.send(f"speed_{i + 1}")
                     for i, r in enumerate(lay["sch_btns"]):
                         if r.collidepoint(pos): remote.send(f"scheme_{i + 1}")
                     if lay["btn_photo"].collidepoint(pos): remote.send("photo")
                     if lay["btn_video"].collidepoint(pos): remote.send("video_toggle")
+
+                if mode in (Mode.USER, Mode.AUTONOMOUS):
+                    for i, r in enumerate(lay["spd_dots"]):
+                        if r.collidepoint(pos): remote.send(f"speed_{i + 1}")
 
                 if lay["btn_face_snap"].collidepoint(pos): remote.send("face_save")
                 if lay["btn_face_scan"].collidepoint(pos): remote.send("face_scan_toggle")

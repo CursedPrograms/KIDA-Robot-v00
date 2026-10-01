@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Colour scheme for every KIDA screen: the robot's own HUD (scripts/ui.py),
+  the remote controller (controller/main.py) and the web dashboard
+  (templates/index.html + static/css/styles.css).
+
+  Edit a value and restart KIDA / the controller - no code changes needed.
+  The web dashboard picks it up on the next page load (served as /colour_scheme.css).
+  A missing or unreadable file/role falls back to the built-in default for that colour.
+
+  Format: one colour per line, written exactly as  name="..." value="#RRGGBB".
+  In the CSS each role is a variable with the same name, "_" written as "-"
+  (text_dim is var(DASH-DASH text-dim) - XML comments can't contain two dashes).
+-->
+<colour_scheme>
+  <!-- Surfaces -->
+  <colour name="background"      value="#08090D"/>  <!-- window / page background -->
+  <colour name="grid"            value="#0E080C"/>  <!-- 44px background grid lines -->
+  <colour name="panel"           value="#0E0F16"/>  <!-- left / right panels, idle buttons -->
+  <colour name="bottom_bar"      value="#0A0B10"/>  <!-- status bar along the bottom -->
+  <colour name="camera_bg"       value="#080A0E"/>  <!-- camera box before the first frame -->
+  <colour name="border"          value="#202334"/>  <!-- panel edges, button outlines -->
+  <colour name="divider"         value="#161824"/>  <!-- lines between NETWORK rows -->
+  <colour name="track"           value="#121420"/>  <!-- empty part of the CPU/TEMP/RAM bars -->
+  <colour name="led_off"         value="#1C1E2C"/>  <!-- LED dots in the top bar while the strip is off -->
+
+  <!-- Text -->
+  <colour name="text"            value="#E6E6E1"/>  <!-- primary values -->
+  <colour name="text_sec"        value="#82847D"/>  <!-- secondary values, idle button labels -->
+  <colour name="text_dim"        value="#3C3E4B"/>  <!-- labels, section titles -->
+
+  <!-- Buttons -->
+  <colour name="accent"          value="#FF1E64"/>  <!-- KIDA logo, hover / selected, camera corners -->
+  <colour name="button_hover_bg" value="#160A12"/>  <!-- button fill when hovered / selected -->
+  <colour name="danger_bg"       value="#1C0A0A"/>  <!-- STOP / STOP REC button fill -->
+
+  <!-- Signal colours -->
+  <colour name="green"           value="#1DC878"/>  <!-- online dot -->
+  <colour name="blue"            value="#378ADD"/>  <!-- LINE FOLLOW, PHOTO, RAM bar -->
+  <colour name="amber"           value="#FFA028"/>  <!-- warnings, IP address, driving direction -->
+  <colour name="red"             value="#E24B4A"/>  <!-- STOP, recording, errors, offline -->
+  <colour name="teal"            value="#14C8AA"/>  <!-- AUTONOMOUS, face boxes (man) -->
+  <colour name="purple"          value="#A050F0"/>  <!-- face scan, face boxes (woman) -->
+</colour_scheme>

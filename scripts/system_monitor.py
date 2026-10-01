@@ -19,14 +19,28 @@ logger = logging.getLogger("kida.monitor")
 
 
 def get_local_ip() -> str:
+    """This robot's LAN address, or "N/A" if it has none yet.
+
+    Asks the routing table first (no packet is sent); that fails when there's
+    no default route — e.g. KIDA running as its own hotspot — so then it takes
+    the first non-loopback IPv4 address on an interface, preferring Wi-Fi."""
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("10.255.255.255", 1))
+            ip = s.getsockname()[0]
+        if not ip.startswith("127."):
+            return ip
+    except OSError:
+        pass
+    try:
+        addrs = psutil.net_if_addrs()
+        for name in sorted(addrs, key=lambda n: not n.startswith("wlan")):
+            for a in addrs[name]:
+                if a.family == socket.AF_INET and not a.address.startswith("127."):
+                    return a.address
     except Exception:
-        return "N/A"
+        pass
+    return "N/A"
 
 
 def _stats_worker() -> None:
@@ -35,8 +49,11 @@ def _stats_worker() -> None:
             cpu = psutil.cpu_percent()
             mem = psutil.virtual_memory()
             dio = psutil.disk_io_counters()
-            with open("/sys/class/thermal/thermal_zone0/temp") as f:
-                temp = int(f.read()) / 1000.0
+            try:
+                with open("/sys/class/thermal/thermal_zone0/temp") as f:
+                    temp = int(f.read()) / 1000.0
+            except (OSError, ValueError):
+                temp = 0.0      # no sensor (not a Pi) — keep reporting the rest
             try:
                 out  = subprocess.check_output(
                     ["ping", "-c", "1", "-W", "1", "8.8.8.8"], timeout=1.5

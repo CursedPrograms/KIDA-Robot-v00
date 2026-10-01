@@ -23,13 +23,15 @@ function send(command) {
     body: JSON.stringify({ command }), keepalive: true,
   }).catch(() => {});
 }
-const mode    = () => S.mode || 'USER';
-const isUser  = () => mode() === 'USER';
+const mode     = () => S.mode || 'USER';
+const isUser   = () => mode() === 'USER';
+const canSpeed = () => mode() === 'USER' || mode() === 'AUTONOMOUS';   // autonomous cruises at the selected speed
 const modeCmd = m => `_mode_${m.toLowerCase()}`;
 
 // ── Buttons ──────────────────────────────────────────────────────────────────
 document.querySelectorAll('[data-cmd]').forEach(b => b.addEventListener('click', () => {
-  if (b.hasAttribute('data-user') && !isUser()) return;   // ui.py: USER-mode only
+  if (b.hasAttribute('data-user') && !isUser()) return;     // ui.py: USER-mode only
+  if (b.hasAttribute('data-speed') && !canSpeed()) return;
   send(b.dataset.cmd);
 }));
 document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => send(`_mode_${b.dataset.mode}`)));
@@ -53,6 +55,7 @@ document.querySelectorAll('.dp').forEach(b => {
 // ── Keyboard (ui.py bindings) ────────────────────────────────────────────────
 const held = new Set();
 document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;   // leave browser shortcuts (Ctrl+C etc.) alone
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (k === 'Tab' || k === ' ') e.preventDefault();
   if ('wasdq'.includes(k) && k.length === 1) { held.add(k); updateDrive(); }
@@ -64,13 +67,13 @@ document.addEventListener('keydown', e => {
   else if (k === 'u')   send(modeCmd('USER'));
   else if (k === 'o')   send(modeCmd('AUTONOMOUS'));
   else if (k === 'l')   send(modeCmd('LINE'));
+  else if (k === 'x' && canSpeed()) send('speed');
   else if (isUser()) {
-    if      (k === 'x') send('speed');
-    else if (k === '1') send('scheme_1');
+    if      (k === '1') send('scheme_1');
     else if (k === '2') send('scheme_2');
     else if (k === 'c') send('photo');
     else if (k === 'v') send('video_toggle');
-    else if (k === 's') send('face_save');
+    else if (k === 'f') send('face_save');   // not S — that drives
   }
 });
 document.addEventListener('keyup', e => { held.delete(e.key.toLowerCase()); updateDrive(); });
@@ -115,11 +118,11 @@ function renderStatus() {
   document.querySelectorAll('.led').forEach(d => d.style.background = lit ? rgb(led) : '');
 
   // info strip
-  setText('i-dir', dir); $('i-dir').style.color = dir !== 'STOPPED' ? 'var(--amber)' : 'var(--sec)';
+  setText('i-dir', dir); $('i-dir').style.color = dir !== 'STOPPED' ? 'var(--amber)' : 'var(--text-sec)';
   setText('i-spd', spd);
   setText('i-sch', scheme);
   if (m === 'FACE') { setText('i-4l', 'FACES'); setText('i-4v', `FACES ${faces.length}`); $('i-4v').style.color = 'var(--purple)'; }
-  else              { setText('i-4l', 'LED');   setText('i-4v', `R${led[0]} G${led[1]} B${led[2]}`); $('i-4v').style.color = 'var(--sec)'; }
+  else              { setText('i-4l', 'LED');   setText('i-4v', `R${led[0]} G${led[1]} B${led[2]}`); $('i-4v').style.color = 'var(--text-sec)'; }
 
   // right panel
   document.querySelectorAll('.dp').forEach(b => b.classList.toggle('cur', b.dataset.dir !== 'stop' && b.dataset.dir.toUpperCase() === dir));

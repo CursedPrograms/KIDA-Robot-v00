@@ -8,9 +8,11 @@ VENV_DIR="psdenv"
 
 # Check if the virtual environment directory exists
 if [ ! -d "$VENV_DIR" ]; then
-    # Create the virtual environment and install what KIDA needs
-    python3 -m venv "$VENV_DIR"
-    "$VENV_DIR/bin/pip" install -r requirements.txt -r gpio-requirements.txt
+    # Create the virtual environment and install what KIDA needs.
+    # --system-site-packages: picamera2 comes from apt (see gpio-requirements.txt)
+    # and isn't installable with pip, so the venv has to see the system packages.
+    python3 -m venv --system-site-packages "$VENV_DIR"
+    "$VENV_DIR/bin/pip" install -r requirements.txt
 fi
 
 # Audio: force ALSA on the card that `speaker-test -D hw:0,0` plays through
