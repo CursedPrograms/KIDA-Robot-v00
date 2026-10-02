@@ -23,6 +23,12 @@ import requests
 STATUS_INTERVAL = 0.25
 STATS_INTERVAL  = 2.0
 
+_DRIVE_WORDS = ("forward", "backward", "left", "right", "stop")
+
+
+def _is_drive(command: str) -> bool:
+    return command in _DRIVE_WORDS or command.startswith(("tank:", "drive:"))
+
 
 class RemoteClient:
     def __init__(self, base_url: str):
@@ -113,10 +119,18 @@ class RemoteClient:
 
     def _send_worker(self) -> None:
         while self._running:
-            command = self._outbox.get()
-            if command is None:
-                return
-            self.send_now(command)
+            batch = [self._outbox.get()]
+            while not self._outbox.empty():           # everything queued up meanwhile
+                batch.append(self._outbox.get_nowait())
+            for i, command in enumerate(batch):
+                if command is None:
+                    return
+                # A joystick sends a new drive value every frame — if the robot is
+                # slow to answer, skip drive commands a newer one already replaces
+                # instead of replaying a backlog (other commands all still go).
+                if _is_drive(command) and any(_is_drive(c) for c in batch[i + 1:] if c):
+                    continue
+                self.send_now(command)
 
     def send_now(self, command: str) -> bool:
         try:

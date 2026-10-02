@@ -81,6 +81,12 @@
       <div class="ii"><span class="il">SCHEME</span><span class="iv" id="i-sch">WASD</span></div>
       <div class="ii"><span class="il" id="i-4l">LED</span><span class="iv" id="i-4v">R0 G0 B0</span></div>
     </div>
+
+    <!-- On-screen joystick (drag; release stops) — same as the robot's HUD -->
+    <div id="joy-wrap">
+      <div id="joy"><div id="joy-knob"></div></div>
+      <div id="joy-label">JOYSTICK</div>
+    </div>
   </main>
 
   <!-- ── Right panel (render_right_panel) ─────────────────────────────────── -->
@@ -103,9 +109,11 @@
     </div>
 
     <div class="sec">CONTROL SCHEME</div>
-    <div class="row2">
+    <div class="row3">
       <button class="hb" id="sch-1" data-cmd="scheme_1" data-user>WASD</button>
       <button class="hb" id="sch-2" data-cmd="scheme_2" data-user>QA/WS</button>
+      <!-- ARC: W+A etc. curve (inside wheel slows) instead of driving straight -->
+      <button class="hb" id="sch-arc" style="--hc:var(--teal)" data-cmd="arc_toggle" data-user>ARC</button>
     </div>
 
     <div class="sec">CAPTURE</div>
@@ -128,6 +136,7 @@
     <span class="sb"><b>SPEED</b><em id="sb-spd">0.4</em></span>
     <span class="sb"><b>CAM</b><em>LIVE</em></span>
     <span class="sb"><b>FACES</b><em id="sb-faces">0</em></span>
+    <span class="sb"><b>PAD</b><em id="sb-pad">—</em></span>
     <span class="sb"><b>FRM</b><em id="sb-frm">0</em></span>
     <span id="version">KIDA v2.4 · RASPBERRY PI</span>
   </footer>

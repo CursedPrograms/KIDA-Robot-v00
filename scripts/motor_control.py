@@ -45,6 +45,15 @@ class MotorController:
         self.left.forward(speed)
         self.right.backward(speed)
 
+    def drive(self, left: float, right: float) -> None:
+        """Each wheel at its own signed speed (-1 back … 1 forward) — arc
+        turns, joystick and gamepad driving (see drive_mix.py)."""
+        for wheel, v in ((self.left, left), (self.right, right)):
+            v = max(-1.0, min(1.0, v))
+            if   v > 0: wheel.forward(v)
+            elif v < 0: wheel.backward(-v)
+            else:       wheel.stop()
+
     # ── Tank / independent-wheel scheme ───────────────────────
 
     def control_tank(self, keys, speed: float) -> tuple[bool, bool]:

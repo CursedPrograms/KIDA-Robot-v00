@@ -8,9 +8,11 @@ Drive schemes
 ─────────────
 Scheme 1 (WASD)   — press 1 to activate
   W = forward  S = backward  A = left  D = right
+  W+A / W+D / S+A / S+D arc (inside wheel at 40%) while ARC is on — T toggles
 Scheme 2 (QA/WS)  — press 2 to activate
   Tank control via motors.control_tank()
 Speed — press X to cycle through [0.4, 0.6, 0.8, 1.0]
+Also: on-screen joystick (drag) and a gamepad (gamepad.py) — see drive_mix.py
 """
 
 import logging
@@ -57,8 +59,11 @@ from render_helpers    import (
     hline, vline,
     render_camera, render_info_strip, render_top_bar,
     render_left_panel, render_right_panel, render_bottom_bar,
+    render_joystick, joystick_value,
     build_background, CAM_BG, PURPLE, TEAL,
 )
+from drive_mix         import keys_to_wheels, stick_to_wheels, tank_sticks_to_wheels, wheels_label
+from gamepad           import Gamepad, button_commands
 
 logging.basicConfig(
     level=logging.INFO,
@@ -108,9 +113,11 @@ def _make_command_processor(take_photo, toggle_video, music, speed_levels):
         "mode":          Mode.USER,
         "video_rec":     False,
         "face_scan":     True,
-        "remote":        None,    # ("dir", "forward") | ("tank", (l, r))
+        "arc_turn":      True,    # W+A etc. curve (inside wheel slows) instead of driving straight
+        "remote":        None,    # ("dir", "forward") | ("tank", (l, r)) | ("mix", (l, r))
         "remote_until":  0.0,
         "hold_dir":      None,    # on-screen d-pad held with the mouse
+        "joy":           None,    # on-screen joystick (x, y) while dragged
     }
 
     def drive_intent(kind, value):
@@ -143,8 +150,18 @@ def _make_command_processor(take_photo, toggle_video, music, speed_levels):
                 drive_intent("tank", (l, r))
             except ValueError:
                 pass
+        elif cmd.startswith("drive:"):           # drive:<left>:<right>, each -1..1 (joystick / arc turns)
+            try:
+                l, r = (max(-1.0, min(1.0, float(v))) for v in cmd[6:].split(":"))
+                drive_intent("mix", (l, r))
+            except ValueError:
+                pass
         elif cmd == "stop":
             state["remote_until"] = 0.0
+        elif cmd == "arc_toggle":
+            state["arc_turn"] = not state["arc_turn"]
+        elif cmd in ("arc_on", "arc_off"):
+            state["arc_turn"] = cmd == "arc_on"
         elif cmd == "photo":
             take_photo()
         elif cmd in ("video", "video_start"):
@@ -379,6 +396,21 @@ def main() -> None:
         else:        set_led((0, 0, 0))
         ds["direction"] = "TANK" if (l or r) else "STOPPED"
 
+    def drive_wheels(l: float, r: float) -> None:
+        """Each wheel at its own fraction of the selected speed (arc turns,
+        joystick, gamepad) — see drive_mix.py."""
+        motors.drive(l * ds["speed"], r * ds["speed"])
+        label = wheels_label(l, r)
+        if   label == "FORWARD":      set_led((0, 255, 0))
+        elif label == "BACKWARD":     set_led((255, 0, 0))
+        elif label == "STOPPED":      set_led((0, 0, 0))
+        elif label.endswith("LEFT"):  set_led((0, 0, 255))
+        else:                         set_led((255, 255, 0))
+        ds["direction"] = label
+
+    gamepad  = Gamepad()
+    pad_knob = None       # gamepad stick shown on the on-screen joystick
+
     # ── UI layout (hud_layout.compute_layout) ──────────────────────────────────
     TAB_LABELS  = hud_layout.TAB_LABELS
     DPAD_GLYPHS = hud_layout.DPAD_GLYPHS
@@ -511,10 +543,14 @@ def main() -> None:
                                btn_photo, btn_video, btn_face_snap, btn_face_scan,
                                ds["face_scan"],
                                rp_x, spd_y, sch_y, cap_y, TOP_H, PAD, mouse,
-                               fmono_md, fmono_xs, fbody, fdpad)
+                               fmono_md, fmono_xs, fbody, fdpad, arc_turn=ds["arc_turn"])
+
+            render_joystick(screen, lay["joy"], ds["joy"] or pad_knob, mouse,
+                            ds["mode"] == Mode.USER, fmono_xs)
 
             render_bottom_bar(screen, ds["mode"], ds["ctrl_scheme"], ds["speed"],
-                              face_count, frame, W, H, BOT_H, fmono_xs)
+                              face_count, frame, W, H, BOT_H, fmono_xs,
+                              pad=gamepad.name)
 
             # ── Events ─────────────────────────────────────────────────────────────
             for event in pygame.event.get():
@@ -549,6 +585,7 @@ def main() -> None:
                     elif ds["mode"] == Mode.USER:
                         if   k == pygame.K_1: ds["ctrl_scheme"] = 1  # ← WASD
                         elif k == pygame.K_2: ds["ctrl_scheme"] = 2  # ← QA/WS
+                        elif k == pygame.K_t: ds["arc_turn"] = not ds["arc_turn"]   # ← arc turns on/off
                         elif k == pygame.K_c: take_photo()
                         elif k == pygame.K_v: toggle_video(ds)
                         elif k == pygame.K_f: save_face_snapshot()   # not S — that drives
@@ -566,7 +603,12 @@ def main() -> None:
                                 if cmd == "stop":
                                     ds["remote_until"] = 0.0
                         for i, r in enumerate(sch_btns):
-                            if r.collidepoint(event.pos): ds["ctrl_scheme"] = i + 1
+                            if r.collidepoint(event.pos):
+                                if i < 2: ds["ctrl_scheme"] = i + 1
+                                else:     ds["arc_turn"] = not ds["arc_turn"]
+                        joy = lay["joy"]
+                        if joy and (event.pos[0] - joy[0]) ** 2 + (event.pos[1] - joy[1]) ** 2 <= joy[2] ** 2:
+                            ds["joy"] = joystick_value(joy, event.pos)   # dragged until MOUSEBUTTONUP
                         if btn_photo.collidepoint(event.pos): take_photo()
                         if btn_video.collidepoint(event.pos): toggle_video(ds)
 
@@ -585,8 +627,19 @@ def main() -> None:
                     if btn_skip.collidepoint(event.pos) and ds["music_playing"]:
                         music.play_next()
 
+                elif event.type == pygame.MOUSEMOTION and ds["joy"] is not None:
+                    ds["joy"] = joystick_value(lay["joy"], event.pos)
+
                 elif event.type == pygame.MOUSEBUTTONUP:
                     ds["hold_dir"] = None
+                    ds["joy"]      = None
+
+            # Gamepad — buttons become the same commands the web/controller send
+            pad = gamepad.poll()
+            pad_knob = None
+            if pad:
+                for cmd in button_commands(pad.pressed, ds["mode"].name):
+                    process_cmd(cmd, ctx)
 
             # Flask command queue
             while not command_queue.empty():
@@ -624,20 +677,38 @@ def main() -> None:
                 if ds["hold_dir"]:
                     remote = ("dir", ds["hold_dir"])
 
-                if ds["ctrl_scheme"] == 1 and any(keys[k] for k in (pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d)):
-                    # ── WASD (press 1) ─────────────────────────────────────────────
-                    if   keys[pygame.K_w]: drive_dir("forward")
-                    elif keys[pygame.K_s]: drive_dir("backward")
-                    elif keys[pygame.K_a]: drive_dir("left")
-                    else:                  drive_dir("right")
+                # Gamepad: left stick (WASD scheme) or both sticks (tank), else d-pad
+                pad_wheels = None
+                if pad:
+                    if ds["ctrl_scheme"] == 2:
+                        pad_wheels = tank_sticks_to_wheels(pad.ly, pad.ry)
+                    else:
+                        pad_wheels = stick_to_wheels(pad.lx, pad.ly)
+                        if pad_wheels:
+                            pad_knob = (pad.lx, pad.ly)
+                    pad_wheels = pad_wheels or keys_to_wheels(pad.up, pad.down, pad.left, pad.right,
+                                                              ds["arc_turn"])
+                key_wheels = keys_to_wheels(keys[pygame.K_w], keys[pygame.K_s],
+                                            keys[pygame.K_a], keys[pygame.K_d], ds["arc_turn"])
+
+                # Priority: keyboard, gamepad, on-screen joystick, on-screen d-pad, remote
+                if ds["ctrl_scheme"] == 1 and key_wheels:
+                    # ── WASD (press 1) — W+A etc. arc while ARC is on ──────────────
+                    drive_wheels(*key_wheels)
                 elif ds["ctrl_scheme"] == 2 and any(keys[k] for k in (pygame.K_q, pygame.K_a, pygame.K_w, pygame.K_s)):
                     # ── QA/WS tank (press 2) ───────────────────────────────────────
                     drive_tank(1 if keys[pygame.K_q] else -1 if keys[pygame.K_a] else 0,
                                1 if keys[pygame.K_w] else -1 if keys[pygame.K_s] else 0)
+                elif pad_wheels:
+                    drive_wheels(*pad_wheels)
+                elif ds["joy"] is not None:
+                    drive_wheels(*(stick_to_wheels(*ds["joy"]) or (0.0, 0.0)))
                 elif remote and remote[0] == "dir":
                     drive_dir(remote[1])
                 elif remote and remote[0] == "tank":
                     drive_tank(*remote[1])
+                elif remote and remote[0] == "mix":
+                    drive_wheels(*remote[1])
                 else:
                     drive_dir("stop")
 
@@ -657,6 +728,7 @@ def main() -> None:
                 _robot_state.update(
                     direction=ds["direction"], speed=ds["speed"],
                     speed_idx=ds["speed_idx"], ctrl_scheme=ds["ctrl_scheme"],
+                    arc_turn=ds["arc_turn"], gamepad=gamepad.name,
                     mode=ds["mode"].name, video_rec=ds["video_rec"],
                     music_playing=ds["music_playing"],
                     track=music.current_track or "",

@@ -25,7 +25,11 @@ from urllib.parse import urlparse
 
 _HERE        = os.path.dirname(os.path.abspath(__file__))
 _SCRIPTS_DIR = os.path.join(os.path.dirname(_HERE), "scripts")
-sys.path.insert(0, _SCRIPTS_DIR)   # hud_layout, render_helpers, mode_control
+sys.path.insert(0, _SCRIPTS_DIR)   # hud_layout, render_helpers, mode_control, drive_mix, gamepad
+
+# Keep reading the gamepad while another window has focus (e.g. a browser
+# showing the camera) — must be set before pygame initialises SDL
+os.environ.setdefault("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1")
 
 import pygame
 
@@ -35,8 +39,11 @@ from render_helpers import (
     hline, vline, txt,
     render_camera, render_info_strip, render_top_bar,
     render_left_panel, render_right_panel, render_bottom_bar,
+    render_joystick, joystick_value,
     build_background, RED, CAM_BG,
 )
+from drive_mix      import keys_to_wheels, stick_to_wheels, tank_sticks_to_wheels, wheels_to_command
+from gamepad        import Gamepad, button_commands
 from remote_client  import RemoteClient
 
 APP_NAME     = "KIDA — Remote Controller"
@@ -105,11 +112,15 @@ def run_controller() -> None:
 
     frame     = 0
     hold_dir  = None     # on-screen d-pad held with the mouse
+    joy       = None     # on-screen joystick (x, y) while dragged
+    pad_knob  = None     # gamepad stick, shown on the on-screen joystick
+    gamepad   = Gamepad()
     last_sent = None     # last drive intent sent
     last_beat = 0.0
 
     print("Keys (same as the robot): TAB=cycle mode  U/O/L=user/auto/line  M=music  SPACE=stop music  X=speed (user + auto)")
-    print("   USER mode: WASD or QA/WS drive  1/2=scheme  C=photo  V=video  F=save faces  ESC=quit")
+    print("   USER mode: WASD or QA/WS drive  1/2=scheme  T=arc turns  C=photo  V=video  F=save faces  ESC=quit")
+    print("Gamepad: left stick / d-pad drive  A=speed  B=stop  X=photo  Y=arc  LB/RB=mode  Back=save faces  Start=music")
 
     running = True
     while running:
@@ -122,6 +133,7 @@ def run_controller() -> None:
         speed       = status.get("speed", hud_layout.SPEED_LEVELS[0])
         speed_idx   = status.get("speed_idx", 0)
         ctrl_scheme = status.get("ctrl_scheme", 1)
+        arc_turn    = status.get("arc_turn", True)
         video_rec   = status.get("video_rec", False)
         music_on    = status.get("music_playing", False)
         face_scan   = status.get("face_scan", True)
@@ -194,11 +206,14 @@ def run_controller() -> None:
                            lay["btn_photo"], lay["btn_video"],
                            lay["btn_face_snap"], lay["btn_face_scan"], face_scan,
                            lay["rp_x"], lay["spd_y"], lay["sch_y"], lay["cap_y"],
-                           TOP_H, PAD, mouse, fmono_md, fmono_xs, fbody, fdpad)
+                           TOP_H, PAD, mouse, fmono_md, fmono_xs, fbody, fdpad,
+                           arc_turn=arc_turn)
+
+        render_joystick(screen, lay["joy"], joy or pad_knob, mouse, mode == Mode.USER, fmono_xs)
 
         render_bottom_bar(screen, mode, ctrl_scheme, speed, len(faces),
                           status.get("frame", frame), W, H, BOT_H, fmono_xs,
-                          online=remote.connected)
+                          online=remote.connected, pad=gamepad.name)
 
         if not remote.connected:
             txt(screen, fmono_md, "[ NO CONNECTION TO ROBOT ]",
@@ -240,6 +255,7 @@ def run_controller() -> None:
                 elif mode == Mode.USER:
                     if   k == pygame.K_1: remote.send("scheme_1")
                     elif k == pygame.K_2: remote.send("scheme_2")
+                    elif k == pygame.K_t: remote.send("arc_toggle")
                     elif k == pygame.K_c: remote.send("photo")
                     elif k == pygame.K_v: remote.send("video_toggle")
                     elif k == pygame.K_f: remote.send("face_save")   # not S — that drives
@@ -257,7 +273,11 @@ def run_controller() -> None:
                             if cmd == "stop":
                                 remote.send("stop")
                     for i, r in enumerate(lay["sch_btns"]):
-                        if r.collidepoint(pos): remote.send(f"scheme_{i + 1}")
+                        if r.collidepoint(pos):
+                            remote.send(f"scheme_{i + 1}" if i < 2 else "arc_toggle")
+                    jc = lay["joy"]
+                    if jc and (pos[0] - jc[0]) ** 2 + (pos[1] - jc[1]) ** 2 <= jc[2] ** 2:
+                        joy = joystick_value(jc, pos)      # dragged until the button comes up
                     if lay["btn_photo"].collidepoint(pos): remote.send("photo")
                     if lay["btn_video"].collidepoint(pos): remote.send("video_toggle")
 
@@ -271,21 +291,47 @@ def run_controller() -> None:
                 if lay["btn_skip"].collidepoint(pos) and music_on:
                     remote.send("skip_music")
 
+            elif event.type == pygame.MOUSEMOTION and joy is not None:
+                joy = joystick_value(lay["joy"], event.pos)
+
             elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 hold_dir = None
+                joy      = None
 
-        # ── Drive — held keys / d-pad become a resent intent (dead-man) ───────
+        # ── Gamepad buttons → the same commands as the keys / buttons ─────────
+        pad = gamepad.poll()
+        pad_knob = None
+        if pad:
+            for cmd in button_commands(pad.pressed, mode.name):
+                remote.send(cmd)
+
+        # ── Drive — keys / gamepad / joystick / d-pad become a resent intent ──
+        # Priority matches the robot: keyboard, gamepad, on-screen joystick, d-pad
         intent = None
-        if mode == Mode.USER and pygame.key.get_focused():
-            keys = pygame.key.get_pressed()
-            if ctrl_scheme == 1 and any(keys[k] for k in (pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d)):
-                intent = ("forward"  if keys[pygame.K_w] else
-                          "backward" if keys[pygame.K_s] else
-                          "left"     if keys[pygame.K_a] else "right")
-            elif ctrl_scheme == 2 and any(keys[k] for k in (pygame.K_q, pygame.K_a, pygame.K_w, pygame.K_s)):
+        if mode == Mode.USER:
+            keys = pygame.key.get_pressed() if pygame.key.get_focused() else None
+            key_wheels = keys and keys_to_wheels(keys[pygame.K_w], keys[pygame.K_s],
+                                                 keys[pygame.K_a], keys[pygame.K_d], arc_turn)
+            pad_wheels = None
+            if pad:
+                if ctrl_scheme == 2:
+                    pad_wheels = tank_sticks_to_wheels(pad.ly, pad.ry)
+                else:
+                    pad_wheels = stick_to_wheels(pad.lx, pad.ly)
+                    if pad_wheels:
+                        pad_knob = (pad.lx, pad.ly)
+                pad_wheels = pad_wheels or keys_to_wheels(pad.up, pad.down, pad.left, pad.right, arc_turn)
+
+            if ctrl_scheme == 1 and key_wheels:
+                intent = wheels_to_command(*key_wheels)
+            elif keys and ctrl_scheme == 2 and any(keys[k] for k in (pygame.K_q, pygame.K_a, pygame.K_w, pygame.K_s)):
                 l = 1 if keys[pygame.K_q] else -1 if keys[pygame.K_a] else 0
                 r = 1 if keys[pygame.K_w] else -1 if keys[pygame.K_s] else 0
                 intent = f"tank:{l}:{r}"
+            elif pad_wheels:
+                intent = wheels_to_command(*pad_wheels)
+            elif joy is not None:
+                intent = wheels_to_command(*(stick_to_wheels(*joy) or (0.0, 0.0)))
             elif hold_dir:
                 intent = hold_dir
 

@@ -16,6 +16,32 @@ let frame = 0;
 for (let i = 0; i < 8; i++) $('led-dots').appendChild(Object.assign(document.createElement('i'), { className: 'led' }));
 for (let i = 0; i < 22; i++) $('wave').appendChild(document.createElement('i'));
 
+// ── Drive maths — same as scripts/drive_mix.py ───────────────────────────────
+// Wheel speeds are -1..1 (fraction of the robot's selected speed, + forward).
+const ARC_INNER = 0.4;    // inside wheel during an arc turn (W+A etc.)
+const DEADZONE  = 0.15;
+
+function keysToWheels(fwd, back, left, right, arc) {
+  const t = (fwd ? 1 : 0) - (back ? 1 : 0), s = (right ? 1 : 0) - (left ? 1 : 0);
+  if (!t && !s) return null;
+  if (!t) return [s, -s];                       // spin on the spot
+  if (!s || !arc) return [t, t];                // straight (turn key ignored with ARC off)
+  return s < 0 ? [ARC_INNER * t, t] : [t, ARC_INNER * t];
+}
+const dz = v => Math.abs(v) < DEADZONE ? 0 : (Math.abs(v) - DEADZONE) / (1 - DEADZONE) * Math.sign(v);
+function stickToWheels(x, y) {                  // y: + forward
+  x = dz(Math.max(-1, Math.min(1, x))); y = dz(Math.max(-1, Math.min(1, y)));
+  if (!x && !y) return null;
+  const l = y + x, r = y - x, m = Math.max(1, Math.abs(l), Math.abs(r));
+  return [l / m, r / m];
+}
+function tankSticksToWheels(ly, ry) { const l = dz(ly), r = dz(ry); return l || r ? [l, r] : null; }
+function wheelsToCommand(l, r) {
+  l = Math.round(l * 20) / 20 + 0; r = Math.round(r * 20) / 20 + 0;
+  const named = { '1,1': 'forward', '-1,-1': 'backward', '-1,1': 'left', '1,-1': 'right' };
+  return named[`${l},${r}`] || `drive:${l.toFixed(2)}:${r.toFixed(2)}`;
+}
+
 // ── Commands ─────────────────────────────────────────────────────────────────
 function send(command) {
   fetch('/command', {
@@ -71,6 +97,7 @@ document.addEventListener('keydown', e => {
   else if (isUser()) {
     if      (k === '1') send('scheme_1');
     else if (k === '2') send('scheme_2');
+    else if (k === 't') send('arc_toggle');
     else if (k === 'c') send('photo');
     else if (k === 'v') send('video_toggle');
     else if (k === 'f') send('face_save');   // not S — that drives
@@ -81,21 +108,79 @@ window.addEventListener('blur', () => { held.clear(); holdDir = null; updateDriv
 
 // ── Drive intent: sent on change, resent while held, "stop" on release ───────
 let lastSent = null, lastBeat = 0;
+// Priority matches the robot: keyboard, gamepad, on-screen joystick, d-pad
 function driveIntent() {
   if (!isUser()) return null;
-  const h = k => held.has(k);
-  if ((S.ctrl_scheme || 1) === 1 && ['w', 's', 'a', 'd'].some(h))
-    return h('w') ? 'forward' : h('s') ? 'backward' : h('a') ? 'left' : 'right';
-  if (S.ctrl_scheme === 2 && ['q', 'a', 'w', 's'].some(h))
+  const h = k => held.has(k), arc = S.arc_turn !== false, scheme = S.ctrl_scheme || 1;
+  const keyWheels = keysToWheels(h('w'), h('s'), h('a'), h('d'), arc);
+  if (scheme === 1 && keyWheels) return wheelsToCommand(...keyWheels);
+  if (scheme === 2 && ['q', 'a', 'w', 's'].some(h))
     return `tank:${h('q') ? 1 : h('a') ? -1 : 0}:${h('w') ? 1 : h('s') ? -1 : 0}`;
+  const p = padState;
+  if (p) {
+    const w = (scheme === 2 ? tankSticksToWheels(p.ly, p.ry) : stickToWheels(p.lx, p.ly))
+              || keysToWheels(p.up, p.down, p.left, p.right, arc);
+    if (w) return wheelsToCommand(...w);
+  }
+  if (joyXY) return wheelsToCommand(...(stickToWheels(...joyXY) || [0, 0]));
   return holdDir;
 }
 function updateDrive() {
+  pollGamepad();
   const intent = driveIntent(), now = performance.now();
   if (intent !== lastSent) { send(intent || 'stop'); lastSent = intent; lastBeat = now; }
   else if (intent && now - lastBeat >= HEARTBEAT) { send(intent); lastBeat = now; }
 }
 setInterval(updateDrive, 50);
+
+// ── On-screen joystick: drag to drive, release stops ─────────────────────────
+let joyXY = null;
+const joy = $('joy'), knob = $('joy-knob');
+function joyFromEvent(e) {
+  const b = joy.getBoundingClientRect(), rad = b.width / 2, reach = rad - knob.offsetWidth / 2;
+  let x = (e.clientX - b.left - rad) / reach, y = (b.top + rad - e.clientY) / reach;
+  const m = Math.hypot(x, y);
+  if (m > 1) { x /= m; y /= m; }
+  return [x, y];
+}
+function showKnob(xy) {
+  const reach = joy.offsetWidth / 2 - knob.offsetWidth / 2, [x, y] = xy || [0, 0];
+  knob.style.transform = `translate(calc(-50% + ${x * reach}px), calc(-50% + ${-y * reach}px))`;
+}
+joy.addEventListener('pointerdown', e => {
+  if (!isUser()) return;
+  joy.setPointerCapture(e.pointerId);
+  joyXY = joyFromEvent(e); joy.classList.add('on'); updateDrive();
+});
+joy.addEventListener('pointermove', e => { if (joyXY) { joyXY = joyFromEvent(e); updateDrive(); } });
+const joyUp = () => { joyXY = null; joy.classList.remove('on'); updateDrive(); };
+joy.addEventListener('pointerup', joyUp);
+joy.addEventListener('pointercancel', joyUp);
+
+// ── Gamepad (browser Gamepad API, "standard" layout) — same buttons as gamepad.py ─
+// Left stick / d-pad drive (both sticks in QA/WS), A speed, B stop, X photo,
+// Y arc, LB/RB mode, Back save faces, Start music. Browsers only report a pad
+// after a button is pressed while this page is open.
+const PAD_BUTTONS = { 0: ['speed'], 1: ['_mode_user', 'stop'], 2: ['photo'], 3: ['arc_toggle'],
+                      8: ['face_save'], 9: ['music_toggle'] };
+let padState = null, padHeld = new Set();
+function pollGamepad() {
+  const gp = [...(navigator.getGamepads ? navigator.getGamepads() : [])].find(g => g && g.connected);
+  if (!gp) { padState = null; padHeld.clear(); return; }
+  const btn = i => !!(gp.buttons[i] && gp.buttons[i].pressed);
+  const now = new Set(gp.buttons.map((b, i) => b.pressed ? i : -1).filter(i => i >= 0));
+  for (const i of now) {
+    if (padHeld.has(i)) continue;                         // only on the press, not while held
+    (PAD_BUTTONS[i] || []).forEach(send);
+    if (i === 4 || i === 5) {                              // LB / RB: previous / next mode
+      const n = (MODES.indexOf(mode()) + (i === 5 ? 1 : -1) + MODES.length) % MODES.length;
+      send(modeCmd(MODES[n]));
+    }
+  }
+  padHeld = now;
+  padState = { lx: gp.axes[0] || 0, ly: -(gp.axes[1] || 0), rx: gp.axes[2] || 0, ry: -(gp.axes[3] || 0),
+               up: btn(12), down: btn(13), left: btn(14), right: btn(15) };
+}
 
 // ── Render /status ───────────────────────────────────────────────────────────
 const setText = (id, v) => { const el = $(id); if (el.textContent !== String(v)) el.textContent = v; };
@@ -129,6 +214,8 @@ function renderStatus() {
   document.querySelectorAll('#speeds .hb').forEach((b, i) => b.classList.toggle('active', (S.speed_idx || 0) === i));
   $('sch-1').classList.toggle('active', (S.ctrl_scheme || 1) === 1);
   $('sch-2').classList.toggle('active', S.ctrl_scheme === 2);
+  $('sch-arc').classList.toggle('active', S.arc_turn !== false);
+  joy.classList.toggle('off', !isUser());
   const v = $('btn-video');
   setText('btn-video', S.video_rec ? 'STOP REC' : 'REC');
   v.classList.toggle('active', !!S.video_rec); v.classList.toggle('danger', !!S.video_rec);
@@ -219,6 +306,10 @@ setInterval(() => {
   waveBars.forEach((b, i) => {
     b.style.height = playing ? `${Math.round((Math.sin(frame * 0.12 + i * 0.3) * 0.5 + 0.5) * 30 * 0.85 + 3)}px` : '3px';
   });
+  const padStick = padState && (S.ctrl_scheme || 1) === 1 && stickToWheels(padState.lx, padState.ly)
+                   ? [padState.lx, padState.ly] : null;
+  showKnob(joyXY || padStick);
+  setText('sb-pad', padState ? 'ON' : '—');
   const sl = $('scanline');
   const showScan = S.face_scan !== false && !(S.faces || []).length && S.deepface_ok !== false;
   sl.style.display = showScan ? 'block' : 'none';

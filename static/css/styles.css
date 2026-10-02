@@ -130,10 +130,11 @@ body {
 .dp { font: bold 32px var(--sans); touch-action: none; }
 .dp.stop { font: bold 20px var(--mono); }
 .dp.cur { box-shadow: inset 0 0 0 2px var(--accent); border-color: var(--accent); }
-.row4, .row2 { display: grid; gap: 10px; }
+.row4, .row3, .row2 { display: grid; gap: 10px; }
 .row4 { grid-template-columns: repeat(4, 1fr); }
+.row3 { grid-template-columns: repeat(3, 1fr); }
 .row2 { grid-template-columns: 1fr 1fr; }
-.row4 .hb, .row2 .hb { height: 44px; }
+.row4 .hb, .row3 .hb, .row2 .hb { height: 44px; }
 .row2.cap .hb { height: 48px; }
 .row2.face { margin-top: 10px; }
 .mono { font: bold 20px var(--mono) !important; }
@@ -200,6 +201,31 @@ body {
 .il { font: 14px var(--mono); color: var(--text-dim); height: 16px; }
 .iv { font: bold 17px var(--mono); color: var(--text); }
 
+/* ── On-screen joystick (render_helpers.render_joystick) ───────────────────── */
+#joy-wrap { display: flex; flex-direction: column; align-items: center; margin-top: 14px; }
+#joy {
+  /* fills what's left under the camera (40% of the middle band, minus the
+     tabs, info strip and label), 80-160px — like hud_layout's joystick */
+  --size: clamp(80px, calc((100dvh - var(--top-h) - var(--bot-h)) * 0.4 - 150px), 160px);
+  position: relative; width: var(--size); height: var(--size); border-radius: 50%;
+  background:
+    linear-gradient(var(--divider), var(--divider)) center / calc(100% - 16px) 1px no-repeat,
+    linear-gradient(var(--divider), var(--divider)) center / 1px calc(100% - 16px) no-repeat,
+    var(--panel);
+  border: 1px solid var(--border);
+  touch-action: none; cursor: grab;
+}
+#joy:hover, #joy.on { border-color: var(--accent); }
+#joy.off { opacity: .45; cursor: default; }
+#joy-knob {
+  position: absolute; left: 50%; top: 50%; width: 34%; height: 34%; border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--button-hover-bg); border: 2px solid var(--text-sec);
+  pointer-events: none;
+}
+#joy.on #joy-knob { border-color: var(--accent); }
+#joy-label { margin-top: 4px; font: 14px var(--mono); color: var(--text-dim); }
+
 /* ── Bottom bar ─────────────────────────────────────────────────────────── */
 #botbar {
   grid-area: bot; display: flex; align-items: center;
@@ -231,4 +257,6 @@ body {
   #info { flex-wrap: wrap; gap: 8px 22px; padding-bottom: 12px; }
   #tabs .tab { font-size: 15px; }
   #dpad { margin-top: 10px; }
+  #joy { --size: 160px; }
+  #joy-wrap { padding-bottom: 12px; }
 }

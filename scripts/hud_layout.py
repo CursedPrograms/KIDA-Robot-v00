@@ -80,17 +80,22 @@ def compute_layout(W: int, H: int) -> dict:
     spd_w = (rp_w - DP_G * 3) // 4;  spd_h = 44
     spd_dots = [pygame.Rect(rp_x + i * (spd_w + DP_G), spd_y, spd_w, spd_h) for i in range(4)]
 
-    sch_y = spd_y + spd_h + 26;  sch_w = (rp_w - DP_G) // 2;  sch_h = 44
-    sch_btns = [
-        pygame.Rect(rp_x,                sch_y, sch_w, sch_h),
-        pygame.Rect(rp_x + sch_w + DP_G, sch_y, sch_w, sch_h),
-    ]
+    # WASD | QA/WS | ARC (arc-turn toggle)
+    sch_y = spd_y + spd_h + 26;  sch_w = (rp_w - DP_G * 2) // 3;  sch_h = 44
+    sch_btns = [pygame.Rect(rp_x + i * (sch_w + DP_G), sch_y, sch_w, sch_h) for i in range(3)]
 
     cap_y = sch_y + sch_h + 26;  cap_w = (rp_w - DP_G) // 2;  cap_h = 48
     btn_photo     = pygame.Rect(rp_x,                cap_y, cap_w, cap_h)
     btn_video     = pygame.Rect(rp_x + cap_w + DP_G, cap_y, cap_w, cap_h)
     btn_face_snap = pygame.Rect(rp_x, cap_y + cap_h + 10, cap_w, 44)
     btn_face_scan = pygame.Rect(rp_x + cap_w + DP_G, cap_y + cap_h + 10, cap_w, 44)
+
+    # On-screen joystick: centred under the camera's info strip, sized to the
+    # space left above the bottom bar (None if the window is too short for one)
+    joy_top = CAM_Y + CAM_H + 58
+    joy_bot = H - BOT_H - 26          # room for the "JOYSTICK" label
+    joy_r   = min(80, (joy_bot - joy_top) // 2)
+    joy     = (CAM_X + CAM_W // 2, (joy_top + joy_bot) // 2, joy_r) if joy_r >= 32 else None
 
     lp_x = PAD;  lp_w = L_W - PAD * 2
     mus_btn_y = H - BOT_H - 76;  mus_btn_h = 48;  mus_btn_w = (lp_w - DP_G) // 2
@@ -107,4 +112,5 @@ def compute_layout(W: int, H: int) -> dict:
         "btn_play": btn_play, "btn_skip": btn_skip,
         "rp_x": rp_x, "spd_y": spd_y, "sch_y": sch_y, "cap_y": cap_y,
         "lp_x": lp_x, "lp_w": lp_w,
+        "joy": joy,          # (cx, cy, radius) or None
     }

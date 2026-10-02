@@ -306,7 +306,7 @@ def render_right_panel(screen, mode, direction, speed_idx, ctrl_scheme,
                        btn_photo, btn_video, btn_face_snap, btn_face_scan,
                        face_scan_active,
                        rp_x, spd_y, sch_y, cap_y, TOP_H, PAD, mouse,
-                       fmono_md, fmono_xs, fbody, fdpad):
+                       fmono_md, fmono_xs, fbody, fdpad, arc_turn=False):
     section_label(screen, fmono_xs, "DIRECTIONAL CONTROL", rp_x, TOP_H + PAD)
     for cmd, r in dpad.items():
         is_stop = cmd == "stop"
@@ -320,8 +320,10 @@ def render_right_panel(screen, mode, direction, speed_idx, ctrl_scheme,
         btn(screen, fmono_md, str(i + 1), r, mouse, active=(speed_idx == i))
 
     section_label(screen, fmono_xs, "CONTROL SCHEME", rp_x, sch_y - 20)
-    for i, (r, lbl) in enumerate(zip(sch_btns, ["WASD", "QA/WS"])):
+    for i, (r, lbl) in enumerate(zip(sch_btns[:2], ["WASD", "QA/WS"])):
         btn(screen, fbody, lbl, r, mouse, active=(ctrl_scheme == i + 1))
+    if len(sch_btns) > 2:       # ARC: W+A etc. curve instead of driving straight
+        btn(screen, fbody, "ARC", sch_btns[2], mouse, active=arc_turn, hover_col=TEAL)
 
     section_label(screen, fmono_xs, "CAPTURE", rp_x, cap_y - 20)
     btn(screen, fbody, "PHOTO", btn_photo, mouse, hover_col=BLUE)
@@ -332,8 +334,38 @@ def render_right_panel(screen, mode, direction, speed_idx, ctrl_scheme,
         btn_face_scan, mouse, active=face_scan_active, hover_col=PURPLE)
 
 
+def render_joystick(screen, joy, knob, mouse, enabled, fmono_xs):
+    """On-screen joystick. joy = (cx, cy, radius) from hud_layout; knob =
+    (x, y) in -1..1 (y up = forward) while it's being dragged, else None."""
+    if not joy:
+        return
+    cx, cy, rad = joy
+    hov = enabled and (mouse[0] - cx) ** 2 + (mouse[1] - cy) ** 2 <= rad * rad
+    edge = ACCENT if (knob or hov) else BORDER
+    pygame.draw.circle(screen, PANEL, (cx, cy), rad)
+    pygame.draw.circle(screen, edge, (cx, cy), rad, 1)
+    pygame.draw.line(screen, DIVIDER, (cx - rad + 8, cy), (cx + rad - 8, cy))
+    pygame.draw.line(screen, DIVIDER, (cx, cy - rad + 8), (cx, cy + rad - 8))
+    kx, ky = knob if knob else (0.0, 0.0)
+    kr = max(rad // 3, 10)
+    kpos = (int(cx + kx * (rad - kr)), int(cy - ky * (rad - kr)))
+    pygame.draw.circle(screen, HOVER_BG if enabled else PANEL, kpos, kr)
+    pygame.draw.circle(screen, ACCENT if knob else (SEC if enabled else DIM), kpos, kr, 2)
+    txt(screen, fmono_xs, "JOYSTICK", (cx, cy + rad + 4), DIM, anchor="midtop")
+
+
+def joystick_value(joy, pos):
+    """(x, y) in -1..1 for a mouse/touch position, clamped to the circle."""
+    cx, cy, rad = joy
+    kr = max(rad // 3, 10)
+    reach = rad - kr
+    x, y = (pos[0] - cx) / reach, (cy - pos[1]) / reach
+    m = math.hypot(x, y)
+    return (x / m, y / m) if m > 1 else (x, y)
+
+
 def render_bottom_bar(screen, mode, ctrl_scheme, speed, face_count, frame,
-                      W, H, BOT_H, fmono_xs, online=True):
+                      W, H, BOT_H, fmono_xs, online=True, pad=""):
     sb_y = H - BOT_H
     hline(screen, sb_y, 0, W)
     pygame.draw.circle(screen, GREEN if online else RED, (14, sb_y + BOT_H // 2), 5)
@@ -345,6 +377,7 @@ def render_bottom_bar(screen, mode, ctrl_scheme, speed, face_count, frame,
         ("SPEED",  f"{speed:.1f}"),
         ("CAM",    "LIVE"),
         ("FACES",  str(face_count)),
+        ("PAD",    "ON" if pad else "—"),
         ("FRM",    str(frame)),
     ]:
         ls = fmono_xs.render(lbl, True, DIM)
