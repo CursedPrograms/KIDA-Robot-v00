@@ -108,6 +108,12 @@ Use the numeric keys to hot-swap between drive logics:
 </div>
 <br>
 
+<div align="center">
+  <img src="images/kida-robot-front.png" alt="KIDA Robot front view" width="400"/>
+  <img src="images/kida-robot-side.png" alt="KIDA Robot side view" width="400"/>
+</div>
+<br>
+
 ## Prerequisites
 <details>
 <summary><b>Prerequisites</b></summary>
