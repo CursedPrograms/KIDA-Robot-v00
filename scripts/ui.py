@@ -231,6 +231,10 @@ def main() -> None:
         (W, H), pygame.FULLSCREEN | pygame.HWSURFACE | pygame.DOUBLEBUF)
     W, H   = screen.get_size()   # what we actually got (scaling / Wayland can differ)
     pygame.display.set_caption("KIDA")
+    try:  # window icon: the robot's avatar
+        pygame.display.set_icon(pygame.image.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "images", "kida-icon.png")))
+    except (pygame.error, OSError):
+        pass
     clock = pygame.time.Clock()
 
     # ── Layout + fonts — shared with controller/main.py (hud_layout.py) ──────

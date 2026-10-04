@@ -82,6 +82,10 @@ def run_controller() -> None:
 
     pygame.init()
     pygame.display.set_caption(APP_NAME)
+    try:  # window icon: the robot's avatar
+        pygame.display.set_icon(pygame.image.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "images", "kida-icon.png")))
+    except (pygame.error, OSError):
+        pass
     info = pygame.display.Info()
     if fullscreen:
         W, H  = info.current_w, info.current_h

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KIDA — Kinetic Interactive Drive Automaton</title>
+<meta name="description" content="KIDA v00 is a Raspberry Pi 3 tank robot from the DREAM Robotics ecosystem: teleoperated and autonomous, with live video, on-device age and gender detection, obstacle avoidance and line following.">
+<meta name="color-scheme" content="dark">
+<meta property="og:title" content="KIDA — Kinetic Interactive Drive Automaton">
+<meta property="og:description" content="A Raspberry Pi tank robot for remote monitoring and computer vision.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="images/kida_avatar.jpg">
+<link rel="icon" href="site/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="site/apple-touch-icon.png">
+<link rel="stylesheet" href="site/style.css">
+<script src="site/site.js" defer></script>
+</head>
+<body>
+
+<nav aria-label="Primary">
+  <div class="wrap">
+    <a class="brand" href="#top">KIDA</a>
+    <ul>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#hardware">Hardware</a></li>
+      <li><a href="#controls">Controls</a></li>
+      <li><a href="#quickstart">Quick start</a></li>
+      <li><a href="#screens">Screens</a></li>
+      <li><a href="https://github.com/CursedPrograms/KIDA-Robot-v00">GitHub</a></li>
+    </ul>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <div class="eyebrow">A DREAM Robotics Agent &middot; v00</div>
+    <h1>KIDA</h1>
+    <p class="tagline">Kinetic Interactive Drive Automaton</p>
+    <p class="lede">The foundational entry in the Kinetic series, built on the Raspberry Pi 3 Model B. A versatile teleoperated and autonomous scout for remote monitoring and computer vision.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/CursedPrograms/KIDA-Robot-v00">View on GitHub</a>
+      <a class="btn" href="#quickstart">Quick start</a>
+      <a class="btn" href="https://ko-fi.com/cursedentertainment">Support on Ko-fi</a>
+    </div>
+    <div class="tags" aria-label="Technologies">
+      <span class="tag">Python</span>
+      <span class="tag">Raspberry Pi</span>
+      <span class="tag">Freenove HAT</span>
+      <span class="tag">Shell</span>
+      <span class="tag">MIT License</span>
+    </div>
+    <figure class="avatar wide">
+      <img src="images/kida_avatar.jpg" alt="KIDA's avatar: a human representation of the robot" width="768" height="512">
+      <figcaption>KIDA &middot; avatar</figcaption>
+    </figure>
+    <div class="photos">
+      <figure>
+        <img src="images/kida-robot-front.png" alt="KIDA from the front: red tank chassis, Raspberry Pi, HC-SR04 sensor and camera on a servo" width="800" height="800" loading="lazy">
+        <figcaption>Front</figcaption>
+      </figure>
+      <figure>
+        <img src="images/kida-robot-side.png" alt="KIDA from the side: tracks, Raspberry Pi stack and camera mast" width="800" height="800" loading="lazy">
+        <figcaption>Side</figcaption>
+      </figure>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<section id="overview">
+  <div class="wrap">
+    <h2>Overview</h2>
+    <h3 class="title">A scout that sees, drives and decides</h3>
+    <div class="grid cols-3">
+      <div class="card">
+        <span class="k">Control</span>
+        <h4>Multi-protocol</h4>
+        <p>Drive her from the web interface, over VNC, from the desktop remote controller or with a wireless keyboard.</p>
+      </div>
+      <div class="card">
+        <span class="k">See</span>
+        <h4>Live surveillance</h4>
+        <p>HD video streaming with on-demand photo and video capture.</p>
+      </div>
+      <div class="card">
+        <span class="k">Infer</span>
+        <h4>Biometric inference</h4>
+        <p>Edge vision processing for real-time gender and age detection, right on the Pi.</p>
+      </div>
+      <div class="card">
+        <span class="k">Autonomy</span>
+        <h4>Reactive behaviours</h4>
+        <p>Ultrasonic obstacle avoidance and high-contrast line following.</p>
+      </div>
+      <div class="card">
+        <span class="k">Light</span>
+        <h4>Visual feedback</h4>
+        <p>Customisable RGB lighting for status signals and lighting up her surroundings.</p>
+      </div>
+      <div class="card">
+        <span class="k">Remote</span>
+        <h4>Desktop controller</h4>
+        <p>The same HUD as the robot, running on another PC, with keyboard, mouse and gamepad support.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="hardware">
+  <div class="wrap">
+    <h2>Hardware</h2>
+    <h3 class="title">What she's built from</h3>
+    <ol class="parts">
+      <li><span class="n">01</span> Raspberry Pi 3B</li>
+      <li><span class="n">02</span> Freenove Tank Robot HAT v2</li>
+      <li><span class="n">03</span> Robot tank chassis</li>
+      <li><span class="n">04</span> 2&times; 5&nbsp;V DC motors</li>
+      <li><span class="n">05</span> Raspberry Pi camera</li>
+      <li><span class="n">06</span> HC-SR04 ultrasonic sensor</li>
+      <li><span class="n">07</span> 3-channel line tracking sensor</li>
+      <li><span class="n">08</span> 2S 18650 battery pack</li>
+      <li><span class="n">09</span> PC, Android or iPhone + wireless keyboard</li>
+    </ol>
+    <h3 class="sub">Pinout</h3>
+    <p class="muted">KIDA uses the v2 HAT from the <a href="https://github.com/Freenove/Freenove_Tank_Robot_Kit_for_Raspberry_Pi">Freenove Tank Robot</a>. These are its GPIO assignments.</p>
+    <div class="grid cols-2">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Sensors &amp; outputs</th><th>GPIO</th></tr></thead>
+        <tbody>
+          <tr><td>Ultrasonic TRIG</td><td class="mono">27</td></tr>
+          <tr><td>Ultrasonic ECHO</td><td class="mono">22</td></tr>
+          <tr><td>Servo 0 / 1 / 2</td><td class="mono">12 / 13 / 19</td></tr>
+          <tr><td>LED pixel</td><td class="mono">10</td></tr>
+          <tr><td>IR01 / IR02 / IR03</td><td class="mono">16 / 26 / 21</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Motors</th><th>GPIO</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>Left IN1 / IN2</td><td class="mono">23 / 24</td><td><span class="muted">M1+ / M1&minus;</span></td></tr>
+          <tr><td>Right IN1 / IN2</td><td class="mono">6 / 5</td><td><span class="muted">M2+ / M2&minus;</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    </div>
+  </div>
+</section>
+
+<section id="controls">
+  <div class="wrap">
+    <h2>Controls</h2>
+    <h3 class="title">Two ways to drive</h3>
+    <div class="grid cols-2">
+      <div class="card mode">
+        <span class="k"><kbd>1</kbd> &middot; Coordinated</span>
+        <h4>Standard WASD vectoring</h4>
+        <p><kbd>W</kbd>/<kbd>S</kbd> forward and back, <kbd>A</kbd>/<kbd>D</kbd> rotate. Smooth, cinematic driving.</p>
+      </div>
+      <div class="card mode">
+        <span class="k"><kbd>2</kbd> &middot; Independent</span>
+        <h4>Tank-style tracks</h4>
+        <p><kbd>Q</kbd>/<kbd>A</kbd> drive the left bank, <kbd>W</kbd>/<kbd>S</kbd> the right. Best for heavy terrain and precise pivots.</p>
+      </div>
+    </div>
+    <h3 class="sub">Keys</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Key</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>TAB</kbd></td><td>Cycle modes</td></tr>
+          <tr><td><kbd>U</kbd> / <kbd>O</kbd> / <kbd>L</kbd></td><td>User control / autonomous / line follower mode</td></tr>
+          <tr><td><kbd>X</kbd></td><td>Speed control</td></tr>
+          <tr><td><kbd>C</kbd> / <kbd>V</kbd></td><td>Take a photo / record video</td></tr>
+          <tr><td><kbd>M</kbd> / <kbd>Space</kbd></td><td>Play music / stop music</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3 class="sub">Gamepad</h3>
+    <p class="muted">Xbox, PlayStation, Switch Pro and most others work the same on the robot, the remote controller and the web dashboard. Plug one in any time.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Button</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td>Left stick</td><td>Drive (analog). Both sticks drive the tracks in the tank scheme</td></tr>
+          <tr><td>D-pad</td><td>Drive like WASD</td></tr>
+          <tr><td>A / B</td><td>Cycle speed / stop</td></tr>
+          <tr><td>X / Y</td><td>Photo / arc turns on-off</td></tr>
+          <tr><td>LB / RB</td><td>Previous / next mode</td></tr>
+          <tr><td>Back / Start</td><td>Save faces / play-pause music</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note"><strong>Safety:</strong> the robot stops any remote drive it hasn't heard about for 0.8&nbsp;s, so a dropped connection or a closed window never leaves her driving.</p>
+  </div>
+</section>
+
+<section id="connectivity">
+  <div class="wrap">
+    <h2>Connectivity</h2>
+    <h3 class="title">Join the fleet</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>WiFi SSID</td><td><code>NORA</code></td></tr>
+          <tr><td>Password</td><td><code>12345678</code></td></tr>
+          <tr><td>RIFT / remote controller port</td><td><code>5003</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted spaced">Open her address on port <code>5003</code> in any browser on the same network to get the HTML remote controller, or connect through <a href="https://github.com/CursedPrograms/RIFT">RIFT</a>.</p>
+  </div>
+</section>
+
+<section id="quickstart">
+  <div class="wrap">
+    <h2>Quick start</h2>
+    <h3 class="title">From SD card to driving</h3>
+    <p class="muted">Install <a href="https://www.raspberrypi.com/software/operating-systems/">Raspberry Pi OS</a>, clone the repo onto the Pi, then set up the environment:</p>
+<pre><span class="p">$</span> python3 -m venv venv
+<span class="p">$</span> source venv/bin/activate
+<span class="p">$</span> pip install --upgrade pip
+<span class="p">$</span> pip install -r requirements.txt</pre>
+    <p class="muted">Run her with Python, or with the shell scripts (give them permission once):</p>
+<pre><span class="p">$</span> python run.py
+
+<span class="p">$</span> chmod +x make_executables.sh &amp;&amp; ./make_executables.sh
+<span class="p">$</span> ./run.sh                     <span class="c"># main environment</span>
+<span class="p">$</span> ./linefollower.sh            <span class="c"># one behaviour on its own</span>
+<span class="p">$</span> ./obstacle_avoidance.sh</pre>
+    <h3 class="sub">Remote controller</h3>
+    <p class="muted">The same window as the robot's HUD, running on another PC. The first run creates <code>controller/venv</code> with just <code>pygame</code> and <code>requests</code>.</p>
+<pre><span class="p">$</span> ./run.sh 192.168.1.50                       <span class="c"># Linux / macOS (from controller/)</span>
+<span class="p">&gt;</span> run.bat 192.168.1.50                        <span class="c"># Windows</span>
+<span class="p">$</span> python main.py http://192.168.1.50:5003 --fullscreen</pre>
+  </div>
+</section>
+
+<section id="screens">
+  <div class="wrap">
+    <h2>Screens</h2>
+    <h3 class="title">The controllers</h3>
+    <p class="muted">Captured without a robot connected, so live values show their offline state.</p>
+    <div class="screens">
+      <figure class="shot">
+        <img src="images/screenshots/remote-controller.png" alt="KIDA's remote controller HUD with camera box, stats and drive pad" width="1280" height="743" loading="lazy">
+        <figcaption>Remote controller (pygame)</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="images/screenshots/web-dashboard.png" alt="KIDA's web dashboard" width="1280" height="823" loading="lazy">
+        <figcaption>Web dashboard</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section id="related">
+  <div class="wrap">
+    <h2>DREAM Robotics</h2>
+    <h3 class="title">The rest of the family</h3>
+    <div class="related">
+      <a href="https://github.com/CursedPrograms/MILA-Robot-v00">MILA-Robot-v00</a>
+      <a href="https://github.com/CursedPrograms/IDA-Robot-v00">IDA-Robot-v00</a>
+      <a href="https://github.com/CursedPrograms/KIDA-Robot-v01">KIDA-Robot-v01</a>
+      <a href="https://github.com/CursedPrograms/NORA-Robot-v00">NORA-Robot-v00</a>
+      <a href="https://github.com/CursedPrograms/WHIP-Robot-v00">WHIP-Robot-v00</a>
+      <a href="https://github.com/CursedPrograms/ARM-Robot-v01">ARM-Robot-v01</a>
+      <a href="https://github.com/CursedPrograms/RIFT">RIFT</a>
+      <a href="https://github.com/CursedPrograms/DREAM">DREAM</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="https://github.com/CursedPrograms/KIDA-Robot-v00">GitHub</a>
+      <a href="https://x.com/NorowaretaGemu">X: @NorowaretaGemu</a>
+      <a href="https://cursed-entertainment.itch.io/">itch.io</a>
+      <a href="https://ko-fi.com/cursedentertainment">Ko-fi</a>
+      <a href="https://github.com/CursedPrograms/KIDA-Robot-v00/blob/main/LICENSE">MIT License</a>
+    </div>
+
+    <div class="logos">
+      <a href="https://ko-fi.com/cursedentertainment">
+        <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support Cursed Entertainment on Ko-fi" width="180" loading="lazy">
+      </a>
+      <a href="https://cursed-entertainment.itch.io/">
+        <img src="https://github.com/CursedPrograms/cursedentertainment/raw/main/images/logos/logo-wide-grey.png" alt="Cursed Entertainment" width="250" loading="lazy">
+      </a>
+      <a href="https://github.com/SynthWomb">
+        <img src="https://github.com/SynthWomb/synth.womb/blob/main/logos/synthwomb07.png?raw=true" alt="SynthWomb" width="200" loading="lazy">
+      </a>
+    </div>
+
+    <div>&copy; Cursed Entertainment 2026</div>
+  </div>
+</footer>
+
+</body>
+</html>

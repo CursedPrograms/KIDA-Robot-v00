@@ -24,6 +24,11 @@
 
 # KIDA (v00): Kinetic Interactive Drive Automaton
 
+<div align="center">
+  <img src="images/kida_avatar.jpg" alt="KIDA avatar: a human representation of the robot" width="320"/>
+  <p><i>KIDA</i></p>
+</div>
+
 ## 📖 Overview
 
 <details>
@@ -242,12 +247,11 @@ KIDA uses the V2 robot Hat from the [Freenove Tank Robot](https://github.com/Fre
 | :--- | :--- |
 | **SSID** | `NORA` |
 | **Password** | `12345678` |
-
-* `localhost:5002`
+| **Robot server / web controller** | `http://<KIDA's IP>:5003` |
 
 ### RIFT Integration
-To connect via [RIFT](https://github.com/CursedPrograms/RIFT), ensure KIDA01 is active on:
-* `localhost:5003`
+To connect via [RIFT](https://github.com/CursedPrograms/RIFT), ensure KIDA-00 is active on:
+* `<KIDA's IP>:5003` (`scripts/server.py`)
 - Opening this address in any web browser on the same network, will also launch the **HTML Remote Controller** for manual overrides.
 
 
@@ -256,7 +260,7 @@ To connect via [RIFT](https://github.com/CursedPrograms/RIFT), ensure KIDA01 is 
 ---
 
 <div align="center">
-  <img src="images/screenshot.png" alt="KIDA Robot" width="600"/>
+  <img src="images/screenshots/remote-controller.png" alt="KIDA Robot" width="600"/>
 </div>
 <br>
 
@@ -326,6 +330,17 @@ chmod +x make_executables.sh
 
 > [!IMPORTANT]
 > Ensure you have granted permissions via chmod before attempting to run the .sh files for the first time.
+
+---
+
+## Screenshots
+
+<div align="center">
+  <img src="images/screenshots/remote-controller.png" alt="Remote controller" width="640"/>
+  <img src="images/screenshots/web-dashboard.png" alt="Web dashboard" width="640"/>
+</div>
+
+<p align="center"><i>Remote controller, Web dashboard. Captured without a robot connected, so live values show their offline state.</i></p>
 
 ---
 

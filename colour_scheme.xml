@@ -14,25 +14,25 @@
 -->
 <colour_scheme>
   <!-- Surfaces -->
-  <colour name="background"      value="#08090D"/>  <!-- window / page background -->
-  <colour name="grid"            value="#0E080C"/>  <!-- 44px background grid lines -->
-  <colour name="panel"           value="#0E0F16"/>  <!-- left / right panels, idle buttons -->
-  <colour name="bottom_bar"      value="#0A0B10"/>  <!-- status bar along the bottom -->
-  <colour name="camera_bg"       value="#080A0E"/>  <!-- camera box before the first frame -->
-  <colour name="border"          value="#202334"/>  <!-- panel edges, button outlines -->
-  <colour name="divider"         value="#161824"/>  <!-- lines between NETWORK rows -->
-  <colour name="track"           value="#121420"/>  <!-- empty part of the CPU/TEMP/RAM bars -->
-  <colour name="led_off"         value="#1C1E2C"/>  <!-- LED dots in the top bar while the strip is off -->
+  <colour name="background"      value="#0D0911"/>  <!-- window / page background -->
+  <colour name="grid"            value="#120C18"/>  <!-- 44px background grid lines -->
+  <colour name="panel"           value="#170F1F"/>  <!-- left / right panels, idle buttons -->
+  <colour name="bottom_bar"      value="#100A14"/>  <!-- status bar along the bottom -->
+  <colour name="camera_bg"       value="#0C080F"/>  <!-- camera box before the first frame -->
+  <colour name="border"          value="#2F1F3D"/>  <!-- panel edges, button outlines -->
+  <colour name="divider"         value="#22162C"/>  <!-- lines between NETWORK rows -->
+  <colour name="track"           value="#1D1325"/>  <!-- empty part of the CPU/TEMP/RAM bars -->
+  <colour name="led_off"         value="#271A33"/>  <!-- LED dots in the top bar while the strip is off -->
 
   <!-- Text -->
-  <colour name="text"            value="#E6E6E1"/>  <!-- primary values -->
-  <colour name="text_sec"        value="#82847D"/>  <!-- secondary values, idle button labels -->
-  <colour name="text_dim"        value="#3C3E4B"/>  <!-- labels, section titles -->
+  <colour name="text"            value="#F2E9ED"/>  <!-- primary values -->
+  <colour name="text_sec"        value="#A8949E"/>  <!-- secondary values, idle button labels -->
+  <colour name="text_dim"        value="#6B5761"/>  <!-- labels, section titles -->
 
   <!-- Buttons -->
-  <colour name="accent"          value="#FF1E64"/>  <!-- KIDA logo, hover / selected, camera corners -->
-  <colour name="button_hover_bg" value="#160A12"/>  <!-- button fill when hovered / selected -->
-  <colour name="danger_bg"       value="#1C0A0A"/>  <!-- STOP / STOP REC button fill -->
+  <colour name="accent"          value="#C84A89"/>  <!-- KIDA logo, hover / selected, camera corners -->
+  <colour name="button_hover_bg" value="#250E19"/>  <!-- button fill when hovered / selected -->
+  <colour name="danger_bg"       value="#210F0D"/>  <!-- STOP / STOP REC button fill -->
 
   <!-- Signal colours -->
   <colour name="green"           value="#1DC878"/>  <!-- online dot -->
