@@ -6,6 +6,7 @@ No mutable global state — everything is passed as arguments.
 """
 
 import math
+import os
 import pygame
 from mode_control import Mode
 from colour_scheme import rgb
@@ -209,10 +210,39 @@ def render_info_strip(screen, mode, direction, speed, ctrl_scheme,
         ix += max(ls.get_width(), vs.get_width()) + 22
 
 
+_avatar_cache = {}
+
+
+def _avatar(size):
+    """KIDA's avatar (images/kida_avatar.jpg) as a round surface, cached per size; None if missing."""
+    if size not in _avatar_cache:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "images", "kida_avatar.jpg")
+        try:
+            img = pygame.image.load(path).convert()
+            w, h = img.get_size()
+            s = min(w, h)
+            img = pygame.transform.smoothscale(img.subsurface(((w - s) // 2, 0, s, s)), (size, size))
+            mask = pygame.Surface((size, size), pygame.SRCALPHA)
+            pygame.draw.circle(mask, (255, 255, 255, 255), (size // 2, size // 2), size // 2)
+            out = pygame.Surface((size, size), pygame.SRCALPHA)
+            out.blit(img, (0, 0))
+            out.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
+            _avatar_cache[size] = out
+        except (pygame.error, OSError):
+            _avatar_cache[size] = None
+    return _avatar_cache[size]
+
+
 def render_top_bar(screen, mode, n_thr, temp_c, st, led_color, tabs, TAB_LABELS,
                    W, TOP_H, fmono_xl, fmono_md, fmono_xs, fbody, mouse):
+    logo_x = 14
+    face = _avatar(TOP_H - 14)
+    if face:
+        screen.blit(face, (14, 7))
+        pygame.draw.circle(screen, ACCENT, (14 + face.get_width() // 2, TOP_H // 2), face.get_width() // 2 + 1, 2)
+        logo_x += face.get_width() + 10
     logo = fmono_xl.render("KIDA", True, ACCENT)
-    screen.blit(logo, (14, (TOP_H - logo.get_height()) // 2))
+    screen.blit(logo, (logo_x, (TOP_H - logo.get_height()) // 2))
 
     for i, (tr, tl) in enumerate(zip(tabs, TAB_LABELS)):
         btn(screen, fbody, tl, tr, mouse, active=(int(mode) == i))

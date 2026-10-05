@@ -103,7 +103,7 @@ Use the numeric keys to hot-swap between drive logics:
 - [MILA-Robot-v00](https://github.com/CursedPrograms/MILA-Robot-v00)
 - [ARM-Robot-v01](https://github.com/CursedPrograms/ARM-Robot-v01)
 - [IDA-Robot-v00](https://github.com/CursedPrograms/IDA-Robot-v00)
-- [DREAM/ComCentre](https://github.com/CursedPrograms/DREAM)
+- [DREAM](https://github.com/CursedPrograms/DREAM)
 - [RIFT](https://github.com/CursedPrograms/RIFT)
 
 ---

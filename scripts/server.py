@@ -51,7 +51,7 @@ app    = Flask(__name__,
                template_folder=os.path.join(_ROOT, "templates"))
 
 # ── Network discovery ──────────────────────────────────────────────────────────
-found_servers: dict = {}   # _flask-link peers (other robots / ComCentre)
+found_servers: dict = {}   # _flask-link peers (other robots / DREAM)
 rift_servers:  dict = {}   # _rift._tcp fleet managers
 _found_lock = threading.Lock()
 

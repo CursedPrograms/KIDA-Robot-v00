@@ -260,3 +260,7 @@ body {
   #joy { --size: 160px; }
   #joy-wrap { padding-bottom: 12px; }
 }
+
+/* KIDA's avatar beside the logo */
+#logo { display: flex; align-items: center; gap: 10px; }
+#logo-face { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent); }
