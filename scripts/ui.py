@@ -315,6 +315,13 @@ def main() -> None:
         robot_state=_robot_state, robot_state_lock=_robot_state_lock,
     )
 
+    # ── Voice: greet on startup, the way NORA plays her hello line ──────────────
+    try:
+        from voice import voice
+        voice.hello()
+    except Exception as e:
+        logger.debug("voice hello skipped: %s", e)
+
     # ── Action helpers ─────────────────────────────────────────────────────────
     cam_pil = None  # updated each frame; used by face snapshot
 

@@ -4,6 +4,11 @@ import time
 import logging
 from gpiozero import DistanceSensor, AngularServo
 
+try:
+    from voice import voice          # say "something's in the way", like NORA
+except Exception:
+    voice = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -127,6 +132,11 @@ class ObstacleAvoidance:
                 return False
             self.motors.stop()
             logger.debug("Obstacle at %.2fm — stopping", distance)
+            if voice is not None:
+                try:
+                    voice.blocked()      # cooldown-limited inside voice
+                except Exception:
+                    pass
             self._enter("brake", now)
 
         elif st == "brake":

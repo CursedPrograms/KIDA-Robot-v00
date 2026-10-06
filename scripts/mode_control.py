@@ -28,6 +28,11 @@ from enum import IntEnum
 
 logger = logging.getLogger("kida.mode")
 
+try:
+    from voice import voice          # KIDA speaks her mode, the way NORA does
+except Exception:                    # voice is optional — never block a mode change
+    voice = None
+
 
 # ── Enum ──────────────────────────────────────────────────────────────────────
 
@@ -182,6 +187,12 @@ def switch_mode(current: Mode, target: Mode, ctx: ModeContext) -> Mode:
                     "Mode %s hook for %s raised: %s",
                     label, mode_ref.name, exc,
                 )
+
+    if voice is not None:
+        try:
+            voice.say_mode(int(target))
+        except Exception:
+            pass
 
     return target
 
