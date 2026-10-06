@@ -23,6 +23,7 @@ from flask import Flask, Response, jsonify, request, render_template, render_tem
 from zeroconf import ServiceInfo, Zeroconf, ServiceBrowser
 
 import colour_scheme
+from fleet_near import FleetNear
 from system_monitor import get_local_ip
 from shared_state import (
     command_queue, wait_frame,
@@ -259,6 +260,16 @@ def colour_scheme_xml():
 @app.route("/ping")
 def ping():
     return f"{THIS_NAME} alive", 200
+
+
+# Which robots are nearby: Bluetooth LE beacons from NORA, WHIP and the other KIDA,
+# heard by the Pi's own Bluetooth (fleet_near.py), and this robot's beacon for them.
+near = FleetNear(THIS_NAME).start()
+
+
+@app.route("/near")
+def near_robots():
+    return jsonify(near.status())
 
 
 @app.route("/status")

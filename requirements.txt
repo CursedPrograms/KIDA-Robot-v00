@@ -11,3 +11,4 @@ spidev
 rpi-ws281x
 qrcode
 pydub
+bleak

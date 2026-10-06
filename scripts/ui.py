@@ -50,7 +50,7 @@ from shared_state      import (
     _face_frame_q, _face_enabled, _deepface_ok,
     publish_frame, frame_wanted,
 )
-from server            import run_flask, shutdown_zeroconf
+from server            import run_flask, shutdown_zeroconf, near
 from system_monitor    import start_stats_thread, get_local_ip
 from face_detector     import start_face_thread
 from camera_utils      import cam_to_surface, make_qr
@@ -651,11 +651,22 @@ def main() -> None:
 
             # ── Drive logic ─────────────────────────────────────────────────────────
             mode = ds["mode"]
+            # what KIDA tells the other robots (fleet_near.py), set once per frame
+            near.set_state("driving" if mode in (Mode.AUTONOMOUS, Mode.LINE) else "user" if mode == Mode.USER else "parked")
 
             if mode == Mode.AUTONOMOUS:
                 avoiding = False
-                if avoider:
-                    try:    avoiding = avoider.check_and_avoid(ds["speed"])
+                way = near.give_way(can_turn=True)   # another robot close with right of way: stop, then turn away
+                if way == "wait":
+                    motors.stop()
+                    avoiding = True
+                elif way == "turn":
+                    motors.turn_left(max(ds["speed"], 0.5))
+                    avoiding = True
+                elif avoider:
+                    # a robot near (or coming closer): slower, so the sensors have time
+                    speed = ds["speed"] * (0.6 if near.advice() == "caution" else 1.0)
+                    try:    avoiding = avoider.check_and_avoid(speed)
                     except Exception as e: logger.warning("Avoider: %s", e)
                 else:
                     motors.stop()
@@ -665,7 +676,10 @@ def main() -> None:
 
             elif mode == Mode.LINE:
                 correcting = False
-                if liner:
+                if near.give_way(can_turn=False) != "go":   # wait on the line while a robot with right of way passes
+                    motors.stop()
+                    correcting = True
+                elif liner:
                     try:    correcting = liner.follow_line()
                     except Exception as e: logger.warning("LineFollower: %s", e)
                 else:
