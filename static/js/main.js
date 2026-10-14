@@ -186,7 +186,24 @@ function pollGamepad() {
 const setText = (id, v) => { const el = $(id); if (el.textContent !== String(v)) el.textContent = v; };
 const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`;
 
+// ── Wheel lock (like NORA's): locking is free, unlocking asks for her password ──
+const lockBtn = $('btn-lock');
+lockBtn.addEventListener('click', () => {
+  if (!S.motor_lock) { fetch('/motorlockOn').catch(() => {}); return; }
+  const pw = prompt('Wheel lock password');
+  if (pw === null) return;
+  fetch('/motorlockOff?pw=' + encodeURIComponent(pw))
+    .then(r => r.ok ? null : r.text().then(t => alert(t)))
+    .catch(() => {});
+});
+function renderLock() {
+  const locked = S.motor_lock !== false;
+  lockBtn.classList.toggle('locked', locked);
+  setText('btn-lock', locked ? 'WHEELS LOCKED' : 'WHEELS FREE');
+}
+
 function renderStatus() {
+  renderLock();
   const m = mode(), dir = S.direction || 'STOPPED', spd = (S.speed ?? 0.4).toFixed(1);
   const scheme = (S.ctrl_scheme || 1) === 1 ? 'WASD' : 'QA/WS';
   const led = S.led || [0, 0, 0], faces = S.faces || [], music = !!S.music_playing;

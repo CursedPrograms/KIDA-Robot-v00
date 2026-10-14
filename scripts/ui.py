@@ -49,6 +49,7 @@ from shared_state      import (
     _face_results, _face_lock,
     _face_frame_q, _face_enabled, _deepface_ok,
     publish_frame, frame_wanted,
+    motor_lock, lock_wheels, unlock_wheels, music_ref,
 )
 from server            import run_flask, shutdown_zeroconf, near
 from system_monitor    import start_stats_thread, get_local_ip
@@ -178,6 +179,8 @@ def _make_command_processor(take_photo, toggle_video, music, speed_levels):
             music_stop() if state["music_playing"] else music_play()
         elif cmd in ("skip", "next_music", "skip_music"):
             if state["music_playing"]:         music.play_next()
+        elif cmd == "_music_sync":               # fleet_music.py started / stopped a song
+            state["music_playing"] = music.playing and not music.paused
         elif cmd == "speed":
             state["speed_idx"] = (state["speed_idx"] + 1) % len(speed_levels)
             state["speed"]     = speed_levels[state["speed_idx"]]
@@ -258,6 +261,7 @@ def main() -> None:
 
     # ── Hardware ───────────────────────────────────────────────────────────────
     music  = MusicPlayer(os.path.join(_ROOT, "audio", "music"))
+    music_ref["player"] = music      # RIFT's music together (fleet_music.py, POST /music)
     motors = MotorController()
 
     try:    avoider = ObstacleAvoidance(motors=motors)
@@ -589,6 +593,11 @@ def main() -> None:
                         ds["mode"] = switch_mode(ds["mode"], Mode.AUTONOMOUS, ctx)
                     elif k == pygame.K_l:
                         ds["mode"] = switch_mode(ds["mode"], Mode.LINE, ctx)
+                    elif k == pygame.K_k:
+                        # ← wheel lock on/off: at the robot, no password (you're the credential)
+                        if motor_lock.is_set(): unlock_wheels()
+                        else:                   lock_wheels()
+                        logger.info("Wheel lock %s (K)", "ON" if motor_lock.is_set() else "OFF")
                     elif k == pygame.K_x and ds["mode"] in (Mode.USER, Mode.AUTONOMOUS):
                         # ← cycle speed (autonomous cruises at the selected speed too)
                         ds["speed_idx"] = (ds["speed_idx"] + 1) % len(speed_levels)

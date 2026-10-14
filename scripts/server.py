@@ -10,9 +10,19 @@ registry (192.168.4.1:5000) and to any RIFT fleet manager found over Zeroconf
 (_rift._tcp), so it shows up under "Robots" in RIFT, NORA and the PC apps.
 Both are needed: while RIFT is the fleet authority NORA hides her own roster
 and points callers at RIFT.
+
+Like the rest of the fleet (fleet TODO §1, §7):
+  /motorlockOn, /motorlockOff?pw=   the wheel lock, as NORA's. She boots locked; locking is
+                                    free, unlocking needs Config.MotorPassword (or K at the robot)
+  POST /do {"action", "seconds"}    stop, lock_wheels, music_play/stop/next, photo, and timed
+                                    drives (forward, back, left, right, turn_left, turn_right; max 3 s)
+  POST /music {"action", "track", "at"}   play along when RIFT conducts (fleet_music.py)
+  /status                           + motor_lock, moving, music ("playing"/"stopped"), uptime_s
+  and every 15 s her state to NINA (POST :5012/report, on RIFT's PC).
 """
 
 import io
+import json
 import logging
 import os
 import socket
@@ -30,7 +40,9 @@ from shared_state import (
     _robot_state, _robot_state_lock,
     _system_stats, _stats_lock,
     _face_results, _face_lock,
+    motor_lock, lock_wheels, unlock_wheels, STARTED,
 )
+import fleet_music
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 THIS_NAME = "KIDA00"
@@ -43,7 +55,32 @@ FLEET_HOST        = os.environ.get("KIDA_FLEET_HOST", "192.168.4.1")   # NORA's 
 FLEET_PORT        = 5000
 FLEET_HEARTBEAT_S = 10     # NORA and RIFT drop an entry after 20 s of silence
 FLEET_TYPE        = "tank"
-FLEET_CAPS        = "wasd,tank,obstacle_avoidance,line_follow,camera,face_detection,music"
+
+# What POST /do takes (fleet TODO §1/§7): one "do:<action>" capability each, so RIFT
+# relays to /do. Drives stop by themselves after "seconds" (max MAX_DRIVE_S).
+DO_SIMPLE = {"music_play": "music", "music_stop": "stop_music", "music_next": "skip", "photo": "photo"}
+DO_DRIVE  = {"forward": "forward", "back": "backward", "left": "left", "right": "right",
+             "turn_left": "left", "turn_right": "right"}     # she turns on the spot either way
+DO_ACTIONS = ["stop", "lock_wheels", *DO_SIMPLE, *DO_DRIVE]
+MAX_DRIVE_S = 3.0
+FLEET_CAPS = ("wasd,tank,obstacle_avoidance,line_follow,camera,face_detection,music,"
+              f"music:{THIS_PORT}," + ",".join(f"do:{a}" for a in DO_ACTIONS))
+
+NINA_PORT     = 5012   # NINA (the fleet's caretaker) runs next to RIFT
+NINA_REPORT_S = 15
+
+
+def _motor_password() -> str:
+    """Unlocking needs this: KIDA_MOTOR_PASSWORD, else Config.MotorPassword in config.json
+    (empty in the repo; set it on the robot). Empty = remote unlock refused (K at the robot still works)."""
+    pw = os.environ.get("KIDA_MOTOR_PASSWORD")
+    if pw:
+        return pw
+    try:
+        with open(os.path.join(_ROOT, "config.json"), encoding="utf-8") as f:
+            return str(json.load(f)["Config"].get("MotorPassword", ""))
+    except (OSError, ValueError, KeyError):
+        return ""
 
 logger = logging.getLogger("kida.flask")
 _ROOT  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -155,8 +192,46 @@ def _fleet_heartbeat() -> None:
         time.sleep(FLEET_HEARTBEAT_S)
 
 
+def _rift_url() -> str:
+    """The first RIFT found over Zeroconf ("" if none yet): its clock for music, NINA next to it."""
+    with _found_lock:
+        return next(iter(rift_servers.values()), "")
+
+
+def _status() -> dict:
+    """/status: her telemetry plus the fleet's common fields (moving, music, motor_lock, uptime_s)."""
+    with _robot_state_lock:
+        st = _robot_state.copy()
+    locked = motor_lock.is_set()
+    st.update(motor_lock=locked,
+              moving=not locked and st.get("direction", "STOPPED") != "STOPPED",
+              music="playing" if st.get("music_playing") else "stopped",
+              uptime_s=int(time.time() - STARTED))
+    return st
+
+
+def _nina_report() -> None:
+    """Every NINA_REPORT_S, her state to NINA (POST /report), who watches the whole fleet.
+    NINA runs on RIFT's PC; nothing happens until a RIFT is found."""
+    session = requests.Session()
+    while True:
+        time.sleep(NINA_REPORT_S)
+        rift = _rift_url()
+        if not rift:
+            continue
+        st = _status()
+        body = {"name": THIS_NAME, "state": {
+            "moving": st["moving"], "turning": st.get("direction") in ("LEFT", "RIGHT"),
+            "wheels_locked": st["motor_lock"], "music": st["music"], "mode": st.get("mode")}}
+        try:
+            session.post(f"{rift.rsplit(':', 1)[0]}:{NINA_PORT}/report", json=body, timeout=2)
+        except requests.RequestException:
+            pass
+
+
 def start_fleet_heartbeat() -> None:
     threading.Thread(target=_fleet_heartbeat, daemon=True, name="fleet-heartbeat").start()
+    threading.Thread(target=_nina_report, daemon=True, name="nina-report").start()
 
 
 def shutdown_zeroconf() -> None:
@@ -274,8 +349,84 @@ def near_robots():
 
 @app.route("/status")
 def status():
-    with _robot_state_lock:
-        return jsonify(_robot_state.copy())
+    return jsonify(_status())
+
+
+# ── Wheel lock (like NORA's /motorlockOn, /motorlockOff?pw=) ───────────────────
+@app.route("/motorlockOn", methods=["GET", "POST"])
+def motorlock_on():
+    lock_wheels()
+    command_queue.put("stop")
+    return "OK", 200
+
+
+@app.route("/motorlockOff", methods=["GET", "POST"])
+def motorlock_off():
+    pw, want = request.values.get("pw", ""), _motor_password()
+    if not want:
+        return "DENIED (no MotorPassword set in config.json)", 403
+    if pw != want:
+        return "DENIED", 403
+    unlock_wheels()
+    return "OK", 200
+
+
+# ── The fleet's "do" (RIFT relays POST /talk verb do here) ─────────────────────
+_drive = {"until": 0.0}
+
+
+def _drive_for(cmd: str, seconds: float) -> None:
+    """Resend the drive command while it lasts (ui.py stops a remote drive that isn't
+    resent within REMOTE_HOLD_S), then stop. The wheel lock or a /do stop ends it early."""
+    while time.monotonic() < _drive["until"] and not motor_lock.is_set():
+        command_queue.put(cmd)
+        time.sleep(0.2)
+    _drive["until"] = 0.0
+    command_queue.put("stop")
+
+
+@app.route("/do", methods=["POST"])
+def do_action():
+    body   = _json_body()
+    action = str(body.get("action", "")).strip().lower()
+    if action == "stop":                   # always works: ends a timed drive, and autonomous / line driving
+        _drive["until"] = 0.0
+        command_queue.put("stop")
+        if _robot_state.get("mode") in ("AUTONOMOUS", "LINE"):
+            command_queue.put("_mode_USER")
+        return jsonify({"ok": True, "action": action})
+    if action == "lock_wheels":
+        lock_wheels()
+        command_queue.put("stop")
+        return jsonify({"ok": True, "action": action})
+    if action in DO_SIMPLE:
+        command_queue.put(DO_SIMPLE[action])
+        return jsonify({"ok": True, "action": action})
+    if action not in DO_DRIVE:
+        return jsonify({"ok": False, "error": f"KIDA00 can't {action or '(nothing)'}", "does": DO_ACTIONS}), 400
+    if motor_lock.is_set():
+        return jsonify({"ok": False, "error": "her wheels are locked"}), 409
+    mode = _robot_state.get("mode", "USER")
+    if mode != "USER":
+        return jsonify({"ok": False, "error": f"she's in {mode} mode; she takes drive commands in USER mode"}), 409
+    if time.monotonic() < _drive["until"]:
+        return jsonify({"ok": False, "error": "busy: still on the last drive"}), 409
+    try:
+        seconds = max(0.1, min(MAX_DRIVE_S, float(body.get("seconds", 0.5))))
+    except (TypeError, ValueError):
+        seconds = 0.5
+    _drive["until"] = time.monotonic() + seconds
+    threading.Thread(target=_drive_for, args=(DO_DRIVE[action], seconds), daemon=True, name="do-drive").start()
+    return jsonify({"ok": True, "action": action, "seconds": seconds})
+
+
+# ── Music together (RIFT conducts; fleet_music.py) ─────────────────────────────
+@app.route("/music", methods=["GET", "POST"])
+def music_together():
+    if request.method == "GET":
+        return jsonify(fleet_music.status())
+    out, code = fleet_music.command(_json_body(), _rift_url())
+    return jsonify(out), code
 
 
 @app.route("/command", methods=["POST"])

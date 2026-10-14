@@ -3,6 +3,7 @@
     "AppName": "KIDA",
     "Version": "0.0.1",
     "Description": "Autonomous robotic control system with UI, AI, and remote interface",
+    "MotorPassword": "",
     "EntryPoints": {
       "Main": "main.py",
       "UI": "scripts/ui.py",

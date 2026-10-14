@@ -149,6 +149,8 @@ body {
   cursor: pointer; padding: 0;
 }
 .hb:hover, .hb.active { background: var(--button-hover-bg); border-color: var(--hc); color: var(--hc); }
+#btn-lock { height: 40px; padding: 0 14px; font-size: 14px; letter-spacing: .05em; }
+#btn-lock.locked { --hc: var(--red); color: var(--red); border-color: var(--red); }
 .hb.active::after {
   content: ""; position: absolute; left: 6px; right: 6px; bottom: 0; height: 3px;
   background: var(--hc); border-radius: 2px;

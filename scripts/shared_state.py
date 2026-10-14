@@ -13,6 +13,33 @@ import time
 # ── Command queue (Flask → main loop) ─────────────────────────────────────────
 command_queue: queue.Queue = queue.Queue()
 
+# ── Wheel lock (like NORA's) ───────────────────────────────────────────────────
+# Set = the wheels won't turn: motor_control.py makes every forward/backward a stop,
+# whatever asked (keys, web, gamepad, autonomous, line, /do). Stop always works.
+# Boots locked, like NORA. Locking is free (/motorlockOn, /do lock_wheels, K on
+# her keyboard); unlocking needs MotorPassword (/motorlockOff?pw=) or a person
+# at the robot (K).
+motor_lock = threading.Event()
+motor_lock.set()
+_lock_listeners: list = []          # MotorController.stop of each motor set
+
+
+def lock_wheels() -> None:
+    motor_lock.set()
+    for stop in list(_lock_listeners):
+        try:
+            stop()
+        except Exception:
+            pass
+
+
+def unlock_wheels() -> None:
+    motor_lock.clear()
+
+
+STARTED = time.time()               # for /status uptime_s
+music_ref: dict = {"player": None}  # ui.py's MusicPlayer, for fleet_music.py (/music)
+
 # ── Robot telemetry ────────────────────────────────────────────────────────────
 _robot_state: dict = {
     "direction": "STOPPED", "speed": 0.4, "speed_idx": 0, "ctrl_scheme": 1,

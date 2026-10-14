@@ -4,7 +4,27 @@ import logging
 from gpiozero import Motor
 import pygame
 
+from shared_state import motor_lock, _lock_listeners
+
 logger = logging.getLogger(__name__)
+
+
+class _LockedMotor:
+    """A gpiozero Motor that won't turn while the wheel lock is on (shared_state.motor_lock):
+    forward/backward become stop. Every drive path ends at a Motor (this class's methods,
+    ui.py's drive_tank, obstacle_avoidance, line_follower), so this one check covers them all."""
+
+    def __init__(self, motor):
+        self._motor = motor
+
+    def forward(self, speed: float = 1.0) -> None:
+        self._motor.stop() if motor_lock.is_set() else self._motor.forward(speed)
+
+    def backward(self, speed: float = 1.0) -> None:
+        self._motor.stop() if motor_lock.is_set() else self._motor.backward(speed)
+
+    def __getattr__(self, name):          # stop, close, value... as the Motor has them
+        return getattr(self._motor, name)
 
 
 class MotorController:
@@ -12,12 +32,13 @@ class MotorController:
 
     def __init__(self, left_pins: tuple = (24, 23), right_pins: tuple = (5, 6)):
         try:
-            self.left  = Motor(forward=left_pins[0],  backward=left_pins[1])
-            self.right = Motor(forward=right_pins[0], backward=right_pins[1])
+            self.left  = _LockedMotor(Motor(forward=left_pins[0],  backward=left_pins[1]))
+            self.right = _LockedMotor(Motor(forward=right_pins[0], backward=right_pins[1]))
             logger.info("Motors initialised on pins L=%s R=%s", left_pins, right_pins)
         except Exception as e:
             logger.error("Motor init failed: %s", e)
             raise
+        _lock_listeners.append(self.stop)   # locking stops her at once
 
     # ── Primitives ────────────────────────────────────────────
 

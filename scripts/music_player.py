@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import re
 import glob
 import random
 import logging
@@ -83,6 +84,31 @@ class MusicPlayer:
             logger.info("Now playing: %s", self.current_track)
         except pygame.error as e:
             logger.error("Failed to play %s: %s", path, e)
+
+    def load_number(self, number: int) -> bool:
+        """Loads the track with this number in its file name (track07.mp3 -> 7), ready for
+        start_loaded(): the fleet's music together (fleet_music.py). False if there's none."""
+        for path in self._playlist:
+            m = re.search(r"\d+", os.path.splitext(os.path.basename(path))[0])
+            if m and int(m.group()) == number:
+                try:
+                    pygame.mixer.music.load(path)
+                except pygame.error as e:
+                    logger.error("Failed to load %s: %s", path, e)
+                    return False
+                self._loaded = path
+                return True
+        return False
+
+    def start_loaded(self) -> None:
+        """Starts what load_number() loaded, at once."""
+        self._manual_stop = False
+        pygame.mixer.music.play()
+        self.current_track = os.path.basename(self._loaded)
+        self.current_path  = self._loaded
+        self.playing       = True
+        self.paused        = False
+        logger.info("Now playing (with the fleet): %s", self.current_track)
 
     def stop(self) -> None:
         pygame.mixer.music.stop()
