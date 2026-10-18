@@ -4,6 +4,8 @@
     "Version": "0.0.1",
     "Description": "Autonomous robotic control system with UI, AI, and remote interface",
     "MotorPassword": "",
+    "FleetLadder": true,
+    "CameraServo": {"Pin": 13, "Min": 0, "Max": 180, "Centre": 90, "Invert": false, "FollowOnBoot": false},
     "EntryPoints": {
       "Main": "main.py",
       "UI": "scripts/ui.py",

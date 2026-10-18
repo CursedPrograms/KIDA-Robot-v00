@@ -57,7 +57,11 @@ def _resolve_robot_url() -> tuple:
                         help="Robot IP or URL, e.g. 192.168.1.50 or http://192.168.1.50:5003")
     parser.add_argument("--port", type=int, default=5003)
     parser.add_argument("--fullscreen", action="store_true")
+    parser.add_argument("--ladder", action="store_true",
+                    help="join / host the fleet's WiFi (fleet_ladder.py; FLEET_LADDER=1 does the same)")
     args = parser.parse_args()
+    from fleet_ladder import FleetLadder   # the fleet's WiFi ladder (fleet TODO, section 2)
+    FleetLadder("KIDA00CTL", enabled=args.ladder or None).start()
     if not args.robot:
         parser.error("robot IP/URL required (positional arg, or ROBOT_URL env var)")
     robot = args.robot if args.robot.startswith("http") else f"http://{args.robot}:{args.port}"

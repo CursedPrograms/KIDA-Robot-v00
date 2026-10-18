@@ -43,6 +43,8 @@ from shared_state import (
     motor_lock, lock_wheels, unlock_wheels, STARTED,
 )
 import fleet_music
+import camera_servo
+from fleet_ladder import FleetLadder
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 THIS_NAME = "KIDA00"
@@ -164,7 +166,10 @@ threading.Thread(target=_register_when_online, daemon=True, name="zeroconf-regis
 def _fleet_targets() -> dict:
     """{label: base url} of every fleet registry to heartbeat right now."""
     targets = {}
-    if FLEET_HOST and FLEET_HOST != my_ip:          # KIDA as its own hotspot is 192.168.4.1 too
+    host = LADDER.registry_host() if LADDER else None
+    if host:                                        # the ladder knows who hosts (herself: 127.0.0.1)
+        targets["host"] = f"http://{host}:{FLEET_PORT}"
+    elif FLEET_HOST and FLEET_HOST != my_ip:          # KIDA as its own hotspot is 192.168.4.1 too
         targets["NORA"] = f"http://{FLEET_HOST}:{FLEET_PORT}"
     with _found_lock:
         targets.update(rift_servers)
@@ -206,7 +211,9 @@ def _status() -> dict:
     st.update(motor_lock=locked,
               moving=not locked and st.get("direction", "STOPPED") != "STOPPED",
               music="playing" if st.get("music_playing") else "stopped",
-              uptime_s=int(time.time() - STARTED))
+              uptime_s=int(time.time() - STARTED),
+              ladder=LADDER.status() if LADDER else None,
+              camera_servo=camera_servo.camera_servo.status())
     return st
 
 
@@ -229,7 +236,26 @@ def _nina_report() -> None:
             pass
 
 
+LADDER = None
+
+
+def _ladder_on() -> bool:
+    """The fleet's WiFi ladder (fleet_ladder.py, fleet TODO section 2): on unless Config.FleetLadder is
+    false. FLEET_LADDER=0 turns it off for a run."""
+    if os.environ.get("FLEET_LADDER") in ("0", "false", "no"):
+        return False
+    try:
+        with open(os.path.join(_ROOT, "config.json"), encoding="utf-8") as f:
+            return bool(json.load(f)["Config"].get("FleetLadder", True))
+    except (OSError, ValueError, KeyError):
+        return True
+
+
 def start_fleet_heartbeat() -> None:
+    global LADDER
+    # She joins the highest fleet network she sees (RIFT > ... > KIDA01), checks every 15 s that it's
+    # still there and moves up when a higher one appears; with none she hosts "KIDA00" + the fleet list.
+    LADDER = FleetLadder("KIDA00", enabled=_ladder_on(), log=logger.info).start()
     threading.Thread(target=_fleet_heartbeat, daemon=True, name="fleet-heartbeat").start()
     threading.Thread(target=_nina_report, daemon=True, name="nina-report").start()
 
@@ -418,6 +444,17 @@ def do_action():
     _drive["until"] = time.monotonic() + seconds
     threading.Thread(target=_drive_for, args=(DO_DRIVE[action], seconds), daemon=True, name="do-drive").start()
     return jsonify({"ok": True, "action": action, "seconds": seconds})
+
+
+# ── The camera's servo (camera_servo.py) ───────────────────────────────────────
+@app.route("/camera_servo", methods=["GET", "POST"])
+def camera_servo_route():
+    """GET: angle, mode (manual / follow / sweep), the face it sees. POST {"action": "centre" | "left" |
+    "right" | "angle" | "follow" | "sweep" | "stop_sweep", "angle", "step", "on", "seconds"}."""
+    if request.method == "GET":
+        return jsonify(camera_servo.camera_servo.status())
+    out, code = camera_servo.command(_json_body())
+    return jsonify(out), code
 
 
 # ── Music together (RIFT conducts; fleet_music.py) ─────────────────────────────

@@ -293,12 +293,37 @@ function renderStats(s) {
   if (s.ip && s.ip !== 'N/A') setText('ip', s.ip);
 }
 
+// ── The camera's servo: pan, follow a person, record a sweep ─────────────────
+const csPost = body => fetch('/camera_servo', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify(body) }).catch(() => {});
+document.querySelectorAll('[data-cs]').forEach(b => b.addEventListener('click', () => csPost({ action: b.dataset.cs })));
+$('cs-follow').addEventListener('click', () => {
+  const cs = S.camera_servo || {};
+  csPost({ action: 'follow', on: cs.mode !== 'follow' });
+});
+$('cs-time').addEventListener('input', () => setText('cs-time-v', `${$('cs-time').value} s`));
+$('cs-sweep').addEventListener('click', () => {
+  const cs = S.camera_servo || {};
+  csPost(cs.mode === 'sweep' ? { action: 'stop_sweep' } : { action: 'sweep', seconds: +$('cs-time').value });
+});
+function renderCameraServo() {
+  const cs = S.camera_servo;
+  if (!cs) return;
+  setText('cs-angle', `${Math.round(cs.angle)}°`);
+  const follow = cs.mode === 'follow', sweep = cs.mode === 'sweep';
+  setText('cs-follow', follow ? (cs.face ? 'FOLLOWING' : 'LOOKING…') : 'MANUAL');
+  $('cs-follow').classList.toggle('active', follow);
+  setText('cs-sweep', sweep ? `STOP ${Math.round((cs.sweep.progress || 0) * 100)}%` : 'SWEEP REC');
+  $('cs-sweep').classList.toggle('active', sweep);
+}
+
 // ── Polling ──────────────────────────────────────────────────────────────────
 async function pollStatus() {
   try {
     S = await (await fetch('/status', { cache: 'no-store' })).json();
     connected = true;
     renderStatus();
+    renderCameraServo();
   } catch (e) { connected = false; }
   $('nolink').classList.toggle('on', !connected);
   $('ping').classList.toggle('off', !connected);

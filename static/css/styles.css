@@ -137,6 +137,11 @@ body {
 .row4 .hb, .row3 .hb, .row2 .hb { height: 44px; }
 .row2.cap .hb { height: 48px; }
 .row2.face { margin-top: 10px; }
+.row3.cam .hb, .row2.cam .hb { height: 40px; }
+.row2.cam { margin-top: 10px; }
+#cs-angle { color: var(--text-sec); margin-left: 6px; }
+.cs-slider { display: flex; align-items: center; gap: 8px; margin-top: 8px; font: 12px var(--mono); color: var(--text-sec); }
+.cs-slider input { flex: 1; accent-color: var(--accent); }
 .mono { font: bold 20px var(--mono) !important; }
 
 /* ── Buttons (render_helpers.btn) ─────────────────────────────────────────── */

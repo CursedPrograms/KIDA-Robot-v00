@@ -127,6 +127,18 @@
       <button class="hb" style="--hc:var(--purple)" data-cmd="face_save">SAVE FACES</button>
       <button class="hb" id="btn-scan" style="--hc:var(--purple)" data-cmd="face_scan_toggle">SCAN OFF</button>
     </div>
+
+    <div class="sec">CAMERA <span id="cs-angle">90°</span></div>
+    <div class="row3 cam">
+      <button class="hb" data-cs="left">◀</button>
+      <button class="hb" data-cs="centre">CENTRE</button>
+      <button class="hb" data-cs="right">▶</button>
+    </div>
+    <div class="row2 cam">
+      <button class="hb" id="cs-follow" style="--hc:var(--teal)" title="Manual: you pan it. Follow: it looks at a person">MANUAL</button>
+      <button class="hb" id="cs-sweep" style="--hc:var(--red)" title="Record a sweep from one end to the other">SWEEP REC</button>
+    </div>
+    <label class="cs-slider">SWEEP TIME <input type="range" id="cs-time" min="3" max="60" value="10"> <span id="cs-time-v">10 s</span></label>
   </aside>
 
   <!-- ── Bottom bar (render_bottom_bar) ───────────────────────────────────── -->

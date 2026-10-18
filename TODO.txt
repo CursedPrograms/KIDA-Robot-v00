@@ -1,0 +1,115 @@
+Servo 2 GPIO 13 Camera is mounted on this it also needs controls and and object detection that "looks at a person and follows them" I also want a set to centre script i think its 360 servo
+maybe this will work?  use the lightest possible object detection
+The ideal solution is to skip heavy neural networks and instead use OpenCV’s Haar Cascade Face Detector/ remember if control it or follows a human asif looking at them should have a switch
+also make .sh that would set it up as a service so it autostarts on boot
+what will also be cool is if we a sweep recording from position move to 0 - than record tham to 360 (you can also adjust sweep time with a slider. - than back stop recording
+
+https://github.com/automaticdai/rpi-object-detection
+
+her is a demo script i think may work:
+
+import time
+import cv2
+from gpiozero import AngularServo
+
+# --- CONFIGURATION ---
+SERVO_PIN = 13  # Connected to GPIO 13
+
+# Initialize the angular servo (adjust min/max pulse width if necessary for your specific servo)
+# A standard servo usually uses min_angle=-90, max_angle=90 or 0 to 180. 
+# Using 0 to 180 degrees range:
+servo = AngularServo(SERVO_PIN, min_angle=0, max_angle=180, min_pulse_width=0.0005, max_pulse_width=0.0025)
+
+# Load OpenCV's ultra-lightweight Haar Cascade for face detection (no heavy ML model needed)
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
+# Initialize Camera (0 is usually the default Pi camera or USB webcam)
+cap = cv2.VideoCapture(0)
+
+# Frame dimensions
+frame_width = 320
+frame_height = 240
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, frame_width)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, frame_height)
+
+# Center point of the frame (X axis target)
+frame_center_x = frame_width // 2
+
+# Starting current servo angle (90 degrees is typically dead center)
+current_angle = 90
+
+def center_servo():
+    """Moves the servo to the center position (90 degrees)."""
+    global current_angle
+    print("Centering servo...")
+    servo.angle = 90
+    current_angle = 90
+    time.sleep(1) # Give it time to reach position
+
+# 1. Run the set-to-centre script action on startup
+center_servo()
+
+print("Starting object tracking. Press 'q' to quit.")
+
+try:
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Failed to grab frame")
+            break
+
+        # Flip frame horizontally for a natural mirror view (optional)
+        frame = cv2.flip(frame, 1)
+        
+        # Convert to grayscale for faster processing with Haar Cascades
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        
+        # Detect faces (lightest possible person-tracking method for Pi 3)
+        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+
+        if len(faces) > 0:
+            # Grab the first detected face (or sort by largest bounding box)
+            (x, y, w, h) = max(faces, key=lambda f: f[2] * f[3])
+            
+            # Calculate the center X of the face bounding box
+            face_center_x = x + (w // 2)
+            
+            # Draw visual indicators on screen
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cv2.circle(frame, (face_center_x, y + (h // 2)), 5, (0, 0, 255), -1)
+
+            # Calculate error offset from the center of the frame
+            error_x = face_center_x - frame_center_x
+
+            # If the face is significantly off-center, adjust the servo angle
+            # Deadzone of +/- 30 pixels prevents jittery micro-movements
+            if abs(error_x) > 30:
+                # Adjust angle incrementally based on direction
+                if error_x > 0 and current_angle > 0:
+                    current_angle -= 2  # Turn right / sweep left depending on mounting
+                elif error_x < 0 and current_angle < 180:
+                    current_angle += 2  # Turn left / sweep right depending on mounting
+                
+                # Constrain angle limits safely between 0 and 180
+                current_angle = max(0, min(180, current_angle))
+                servo.angle = current_angle
+
+        # Show the video feed window (if running with a desktop environment)
+        cv2.imshow("Pi 3 Face Tracker", frame)
+
+        # Break loop if 'q' is pressed
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+except KeyboardInterrupt:
+    print("Program stopped by user.")
+
+finally:
+    # Cleanup
+    cap.release()
+    cv2.destroyAllWindows()
+    servo.detach()
+
+DONE 2026-10-18 (PC copy, to copy onto the Pi - list in the fleet TODO, section 7):
+camera servo on GPIO 13: CENTRE, left/right, MANUAL/FOLLOW (Haar face cascade), SWEEP REC with a time slider.
+camera_centre.sh centres it. It starts with KIDA, so install_service.sh already autostarts it on boot.

@@ -54,6 +54,7 @@ from shared_state      import (
 from server            import run_flask, shutdown_zeroconf, near
 from system_monitor    import start_stats_thread, get_local_ip
 from face_detector     import start_face_thread
+from camera_servo      import camera_servo
 from camera_utils      import cam_to_surface, make_qr
 import hud_layout
 from render_helpers    import (
@@ -258,6 +259,7 @@ def main() -> None:
     threading.Thread(target=run_flask,  daemon=True).start()
     start_stats_thread()
     start_face_thread()
+    camera_servo.start()          # the camera's servo (GPIO 13): centred, then manual / follow / sweep
 
     # ── Hardware ───────────────────────────────────────────────────────────────
     music  = MusicPlayer(os.path.join(_ROOT, "audio", "music"))
@@ -493,6 +495,8 @@ def main() -> None:
                 cam_surf, cam_pil = cam_to_surface(cam, CAM_W, CAM_H)
                 if cam_pil is not None and frame_wanted():
                     publish_frame(cam_pil, (CAM_NATIVE_W, CAM_NATIVE_H))
+                if cam_pil is not None and camera_servo.wants_frames():   # following a face, or a sweep
+                    camera_servo.feed(cam_pil)
 
             # Feed face worker in all modes when scanning is active
             if ds["face_scan"] or ds["mode"] == Mode.FACE:
