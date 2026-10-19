@@ -277,6 +277,9 @@ def main() -> None:
     except Exception as e:
         logger.warning("ObstacleAvoidance init failed: %s", e);  avoider = None
 
+    if avoider:   # the wall guard (motor_control.WALL_GUARD_M) reads the same front sensor
+        motors.distance = avoider.get_distance
+
     try:    liner = LineFollower(motors=motors)
     except Exception as e:
         logger.warning("LineFollower init failed: %s", e);  liner = None
@@ -416,6 +419,8 @@ def main() -> None:
         ds["direction"] = d.upper()
 
     def drive_tank(l: int, r: int) -> None:
+        if l > 0 and r > 0 and motors.wall_ahead():   # the wall guard (motor_control.WALL_GUARD_M)
+            l = r = 0
         for wheel, v in ((motors.left, l), (motors.right, r)):
             if   v > 0: wheel.forward(ds["speed"])
             elif v < 0: wheel.backward(ds["speed"])

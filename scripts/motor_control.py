@@ -8,6 +8,12 @@ from shared_state import motor_lock, _lock_listeners
 
 logger = logging.getLogger(__name__)
 
+# The wall guard (like MILA's and IDA's guardDist, NORA's MANUAL_STOP_CM): she won't drive forward,
+# whatever drives her (keys, tank, gamepad, web, line following), while the front sensor sees
+# something closer than this. Turning and reversing still work, so she can always get away.
+# Obstacle mode stops long before this (its threshold is 0.5 m), so the two never fight.
+WALL_GUARD_M = 0.15
+
 
 class _LockedMotor:
     """A gpiozero Motor that won't turn while the wheel lock is on (shared_state.motor_lock):
@@ -39,6 +45,17 @@ class MotorController:
             logger.error("Motor init failed: %s", e)
             raise
         _lock_listeners.append(self.stop)   # locking stops her at once
+        self.distance = None   # () -> metres ahead or None; ui.py hands over the ultrasonic's
+
+    def wall_ahead(self) -> bool:
+        """Something within WALL_GUARD_M in front (False with no sensor or no reading)."""
+        if not self.distance:
+            return False
+        try:
+            d = self.distance()
+        except Exception:
+            return False
+        return d is not None and 0 < d < WALL_GUARD_M
 
     # ── Primitives ────────────────────────────────────────────
 
@@ -47,6 +64,9 @@ class MotorController:
         self.right.stop()
 
     def forward(self, speed: float = 1.0) -> None:
+        if self.wall_ahead():
+            self.stop()
+            return
         speed = self._clamp(speed)
         self.left.forward(speed)
         self.right.forward(speed)
@@ -69,6 +89,9 @@ class MotorController:
     def drive(self, left: float, right: float) -> None:
         """Each wheel at its own signed speed (-1 back … 1 forward) — arc
         turns, joystick and gamepad driving (see drive_mix.py)."""
+        if left > 0 and right > 0 and self.wall_ahead():   # going forward into a wall
+            self.stop()
+            return
         for wheel, v in ((self.left, left), (self.right, right)):
             v = max(-1.0, min(1.0, v))
             if   v > 0: wheel.forward(v)
@@ -85,6 +108,9 @@ class MotorController:
         """
         speed = self._clamp(speed)
         left_active = right_active = False
+        if keys[pygame.K_q] and keys[pygame.K_w] and self.wall_ahead():   # both tracks forward, into a wall
+            self.stop()
+            return False, False
 
         if keys[pygame.K_q]:
             self.left.forward(speed);  left_active = True
