@@ -271,3 +271,35 @@ body {
 /* KIDA's avatar beside the logo */
 #logo { display: flex; align-items: center; gap: 10px; }
 #logo-face { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent); }
+
+/* Colours that were inline in index.html: the bars' fill and the buttons' highlight */
+#b-cpu  { --c: var(--accent); }
+#b-temp { --c: var(--amber); }
+#b-ram  { --c: var(--blue); }
+.hb.hc-teal   { --hc: var(--teal); }
+.hb.hc-blue   { --hc: var(--blue); }
+.hb.hc-red    { --hc: var(--red); }
+.hb.hc-purple { --hc: var(--purple); }
+.dp[data-dir="forward"]  { grid-area: f; }
+.dp[data-dir="left"]     { grid-area: l; }
+.dp[data-dir="stop"]     { grid-area: s; }
+.dp[data-dir="right"]    { grid-area: r; }
+.dp[data-dir="backward"] { grid-area: b; }
+
+/* The keys window (KEYS button or H), from /keymap */
+#btn-keys { height: 40px; padding: 0 14px; font-size: 14px; letter-spacing: .05em; }
+#keys { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+        background: rgba(0, 0, 0, .78); padding: 24px; }
+#keys[hidden] { display: none; }
+#keys-box { width: min(1180px, 100%); max-height: 100%; overflow-y: auto; padding: 18px 24px 24px;
+            border: 1px solid var(--accent); border-radius: 12px; }
+#keys-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+#keys-title { font: bold 20px var(--mono); color: var(--accent); }
+#keys-close { height: 36px; padding: 0 14px; font-size: 14px; }
+#keys-list { columns: 2 420px; column-gap: 40px; }
+.keys-sec { break-inside: avoid; margin-bottom: 18px; }
+.keys-sec h3 { margin: 0 0 8px; font: bold 13px var(--mono); letter-spacing: .1em; color: var(--text-dim);
+               border-left: 3px solid var(--accent); padding-left: 8px; }
+.keys-row { display: grid; grid-template-columns: 170px 1fr; gap: 10px; padding: 3px 0; font: 15px var(--sans); }
+.keys-row kbd { font: bold 14px var(--mono); color: var(--amber); }
+.keys-row span { color: var(--text); }

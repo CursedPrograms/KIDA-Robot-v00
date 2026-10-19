@@ -26,6 +26,10 @@ import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
+# A gamepad plugged into her USB keeps driving while her window isn't focused
+# (VNC, a terminal on top): SDL drops joystick input for unfocused windows otherwise
+os.environ.setdefault("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1")
+
 import pygame
 from picamera2 import Picamera2
 from picamera2.encoders import H264Encoder
@@ -54,14 +58,15 @@ from shared_state      import (
 from server            import run_flask, shutdown_zeroconf, near
 from system_monitor    import start_stats_thread, get_local_ip
 from face_detector     import start_face_thread
-from camera_servo      import camera_servo
+from camera_servo      import camera_servo, key as camera_key
 from camera_utils      import cam_to_surface, make_qr
 import hud_layout
+import keymap
 from render_helpers    import (
     hline, vline,
     render_camera, render_info_strip, render_top_bar,
     render_left_panel, render_right_panel, render_bottom_bar,
-    render_joystick, joystick_value,
+    render_joystick, joystick_value, render_keymap,
     build_background, CAM_BG, PURPLE, TEAL,
 )
 from drive_mix         import keys_to_wheels, stick_to_wheels, tank_sticks_to_wheels, wheels_label
@@ -210,6 +215,8 @@ def _make_command_processor(take_photo, toggle_video, music, speed_levels):
             state["_face_scan_toggle"]()
         elif cmd in _MODE_MAP:
             state["mode"] = switch_mode(state["mode"], _MODE_MAP[cmd], ctx)
+        elif cmd.startswith("cam_"):            # cam_left / cam_right / cam_centre / cam_pan:<deg>
+            camera_key(cmd)
         return state
 
     return process, state
@@ -279,12 +286,18 @@ def main() -> None:
         # Drive, camera and dashboard all still work without the strip
         logger.error("SPI LED strip not ready — carrying on without LEDs")
 
-    cam = Picamera2()
-    cam.configure(cam.create_preview_configuration(
-        main={"size": (CAM_NATIVE_W, CAM_NATIVE_H)},
-        transform=__import__("libcamera").Transform(hflip=1, vflip=1),
-    ))
-    cam.start()
+    # No camera (unplugged ribbon, or another program has it): the HUD shows an empty
+    # panel and everything else keeps working; photo / video just log that they failed
+    try:
+        cam = Picamera2()
+        cam.configure(cam.create_preview_configuration(
+            main={"size": (CAM_NATIVE_W, CAM_NATIVE_H)},
+            transform=__import__("libcamera").Transform(hflip=1, vflip=1),
+        ))
+        cam.start()
+    except Exception as e:
+        logger.error("Camera unavailable (%s) — carrying on without it", e)
+        cam = None
     _encoder = H264Encoder(bitrate=4000000)
 
     # Rebuilt in the loop if the address changes (Wi-Fi came up after boot)
@@ -469,6 +482,7 @@ def main() -> None:
     # finally: below still stops the motors, camera and LEDs
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
 
+    show_keys = False     # the keys window (H / F1), drawn over the HUD
     running = True
     try:
         while running:
@@ -582,8 +596,16 @@ def main() -> None:
 
                 elif event.type == pygame.KEYDOWN:
                     k = event.key
-                    if   k == pygame.K_ESCAPE:
+                    if   k in (pygame.K_h, pygame.K_F1) or (k == pygame.K_ESCAPE and show_keys):
+                        show_keys = not show_keys and k != pygame.K_ESCAPE
+                    elif k == pygame.K_ESCAPE:
                         running = False
+                    elif k == pygame.K_LEFT:
+                        process_cmd("cam_left", ctx)
+                    elif k == pygame.K_RIGHT:
+                        process_cmd("cam_right", ctx)
+                    elif k == pygame.K_UP:
+                        process_cmd("cam_centre", ctx)
                     elif k == pygame.K_TAB:
                         ds["mode"] = switch_mode(
                             ds["mode"], Mode((int(ds["mode"]) + 1) % 3), ctx)
@@ -664,6 +686,8 @@ def main() -> None:
             if pad:
                 for cmd in button_commands(pad.pressed, ds["mode"].name):
                     process_cmd(cmd, ctx)
+                if abs(pad.rx) > 0.3:                    # right stick pans the camera (+ = left)
+                    process_cmd(f"cam_pan:{-pad.rx * 3:.1f}", ctx)
 
             # Flask command queue
             while not command_queue.empty():
@@ -774,6 +798,10 @@ def main() -> None:
                     faces=[_face_json(f) for f in face_snapshot], deepface_ok=_deepface_ok.is_set(),
                     frame=frame,
                 )
+
+            if show_keys:
+                render_keymap(screen, f"{keymap.ROBOT} KEYS", keymap.sections(), W, H,
+                              fmono_md, fmono_sm, flabel_s)
 
             led.show()
             frame += 1

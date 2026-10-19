@@ -34,12 +34,13 @@ os.environ.setdefault("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1")
 import pygame
 
 import hud_layout
+import keymap
 from mode_control   import Mode
 from render_helpers import (
     hline, vline, txt,
     render_camera, render_info_strip, render_top_bar,
     render_left_panel, render_right_panel, render_bottom_bar,
-    render_joystick, joystick_value,
+    render_joystick, joystick_value, render_keymap,
     build_background, RED, CAM_BG,
 )
 from drive_mix      import keys_to_wheels, stick_to_wheels, tank_sticks_to_wheels, wheels_to_command
@@ -48,6 +49,7 @@ from remote_client  import RemoteClient
 
 APP_NAME     = "KIDA — Remote Controller"
 HEARTBEAT_S  = 0.25   # the robot stops a remote drive it hasn't heard for 0.8 s
+CAM_PAN_S    = 0.1    # how often the right stick sends a camera pan
 MIN_W, MIN_H = 1100, 720
 
 
@@ -125,10 +127,10 @@ def run_controller() -> None:
     gamepad   = Gamepad()
     last_sent = None     # last drive intent sent
     last_beat = 0.0
+    last_pan  = 0.0
+    show_keys = False    # the keys window (H / F1)
 
-    print("Keys (same as the robot): TAB=cycle mode  U/O/L=user/auto/line  M=music  SPACE=stop music  X=speed (user + auto)")
-    print("   USER mode: WASD or QA/WS drive  1/2=scheme  T=arc turns  C=photo  V=video  F=save faces  ESC=quit")
-    print("Gamepad: left stick / d-pad drive  A=speed  B=stop  X=photo  Y=arc  LB/RB=mode  Back=save faces  Start=music")
+    print("Keys: the same as on the robot. H or F1 shows them all.")
 
     running = True
     while running:
@@ -227,6 +229,10 @@ def run_controller() -> None:
             txt(screen, fmono_md, "[ NO CONNECTION TO ROBOT ]",
                 (W // 2, TOP_H + lay["CAM_H"] // 2 + 60), RED, anchor="center")
 
+        if show_keys:
+            render_keymap(screen, f"{keymap.ROBOT} KEYS", keymap.sections(), W, H,
+                          fmono_md, fmono_sm, flabel_s)
+
         pygame.display.flip()
 
         # ════════════════════════════════
@@ -244,8 +250,16 @@ def run_controller() -> None:
 
             elif event.type == pygame.KEYDOWN:
                 k = event.key
-                if   k == pygame.K_ESCAPE:
+                if   k in (pygame.K_h, pygame.K_F1) or (k == pygame.K_ESCAPE and show_keys):
+                    show_keys = not show_keys and k != pygame.K_ESCAPE
+                elif k == pygame.K_ESCAPE:
                     running = False
+                elif k == pygame.K_LEFT:
+                    remote.send("cam_left")
+                elif k == pygame.K_RIGHT:
+                    remote.send("cam_right")
+                elif k == pygame.K_UP:
+                    remote.send("cam_centre")
                 elif k == pygame.K_TAB:
                     remote.send(_mode_cmd(Mode((int(mode) + 1) % 3)))
                 elif k == pygame.K_m:
@@ -312,6 +326,9 @@ def run_controller() -> None:
         if pad:
             for cmd in button_commands(pad.pressed, mode.name):
                 remote.send(cmd)
+            if abs(pad.rx) > 0.3 and time.monotonic() - last_pan >= CAM_PAN_S:   # right stick pans the camera
+                remote.send(f"cam_pan:{-pad.rx * 7.5:.1f}")
+                last_pan = time.monotonic()
 
         # ── Drive — keys / gamepad / joystick / d-pad become a resent intent ──
         # Priority matches the robot: keyboard, gamepad, on-screen joystick, d-pad

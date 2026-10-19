@@ -89,6 +89,8 @@ def _face_worker() -> None:
                     for (x, y, w, h) in (faces if len(faces) else [])
                 ]
 
+            if not _face_enabled.is_set():
+                continue                  # SCAN went off while this frame was analysed
             with _face_lock:
                 _face_results[:] = results
             with _robot_state_lock:

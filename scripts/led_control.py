@@ -3,7 +3,10 @@
 import threading
 import logging
 import numpy
-import spidev
+try:
+    import spidev
+except ImportError:          # not a Pi: the strip is simply not ready
+    spidev = None
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +43,10 @@ class SPI_WS2812_LEDStrip:
         self._lock       = threading.Lock()
         self._ready      = False
 
+        self._spi = None
         try:
+            if spidev is None:
+                raise OSError("spidev isn't installed")
             self._spi = spidev.SpiDev()
             self._spi.open(bus, device)
             self._spi.mode = 0
@@ -94,7 +100,8 @@ class SPI_WS2812_LEDStrip:
 
     def led_close(self) -> None:
         self.clear()
-        self._spi.close()
+        if self._spi is not None:
+            self._spi.close()
         logger.info("LED strip closed")
 
     # ── Effects ───────────────────────────────────────────────

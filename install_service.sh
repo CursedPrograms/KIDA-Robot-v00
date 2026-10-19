@@ -46,9 +46,18 @@ if [ ! -f "$REPO_DIR/run.sh" ]; then
     exit 1
 fi
 
-# Fix Windows line endings (a CRLF shebang won't run) and make run.sh executable
-sed -i 's/\r$//' "$REPO_DIR/run.sh"
-chmod +x "$REPO_DIR/run.sh"
+# Fix Windows line endings (a CRLF shebang won't run) and make the scripts executable
+for f in "$REPO_DIR"/*.sh; do
+    sed -i 's/\r$//' "$f"
+    chmod +x "$f"
+done
+
+# The fleet's WiFi ladder (scripts/fleet_ladder.py) changes the WiFi from inside the service,
+# which NetworkManager only allows a desktop user: ladder_setup.sh adds the polkit rule for it.
+if [ -f "$REPO_DIR/ladder_setup.sh" ]; then
+    SUDO_USER="$RUN_USER" bash "$REPO_DIR/ladder_setup.sh" \
+        || echo "(ladder_setup.sh failed: KIDA still runs, she just can't move the WiFi)"
+fi
 
 # Hardware access: GPIO (motors, sensors, servo), SPI (LED strip),
 # video (camera), audio (ALSA), i2c — only the groups that exist on this Pi
@@ -73,7 +82,6 @@ WorkingDirectory=$REPO_DIR
 # The HUD is a fullscreen pygame window, so it needs the desktop session's
 # display. These cover both Wayland (Pi OS Bookworm) and X11 (older Pi OS).
 Environment=XDG_RUNTIME_DIR=/run/user/$RUN_UID
-Environment=WAYLAND_DISPLAY=wayland-0
 Environment=DISPLAY=:0
 Environment=XAUTHORITY=$RUN_HOME/.Xauthority
 Environment=PYTHONUNBUFFERED=1
@@ -82,7 +90,7 @@ Environment=PYTHONUNBUFFERED=1
 # wait; if it times out, Restart= tries again)
 ExecStartPre=/bin/sh -c 'until [ -S /run/user/$RUN_UID/wayland-0 ] || [ -S /run/user/$RUN_UID/wayland-1 ] || [ -S /tmp/.X11-unix/X0 ]; do sleep 1; done'
 TimeoutStartSec=90
-ExecStart=/bin/bash $REPO_DIR/run.sh
+ExecStart=/bin/bash $REPO_DIR/start_service.sh
 
 # Come back if it crashes (or started before the display was ready),
 # but not if you quit it with Esc
@@ -99,6 +107,8 @@ systemctl restart "$SERVICE_NAME"
 
 echo
 echo "✔ KIDA will now start automatically at boot."
+IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+[ -n "$IP" ] && echo "  Dashboard: http://$IP:5003"
 echo "  Status:  sudo systemctl status $SERVICE_NAME"
 echo "  Logs:    journalctl -u $SERVICE_NAME -f"
 echo "  Remove:  sudo ./install_service.sh --uninstall"

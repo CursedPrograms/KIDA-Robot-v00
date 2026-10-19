@@ -433,3 +433,70 @@ def build_background(W: int, H: int, TOP_H: int, BOT_H: int, L_W: int, R_W: int)
     pygame.draw.rect(bg, PANEL, pygame.Rect(W-R_W, TOP_H, R_W,   H - TOP_H - BOT_H))
     pygame.draw.rect(bg, BOT_BG, pygame.Rect(0, H - BOT_H, W, BOT_H))
     return bg
+
+def _wrap(font, text, width):
+    """Split text into lines that fit in width pixels."""
+    lines, line = [], ""
+    for word in text.split():
+        trial = f"{line} {word}".strip()
+        if line and font.size(trial)[0] > width:
+            lines.append(line)
+            line = word
+        else:
+            line = trial
+    return lines + [line] if line else lines
+
+
+def render_keymap(screen, title, sections, W, H, fhead, fkey, fdesc):
+    """The keys window (H / F1): every section of keymap.py over the HUD, in as few
+    columns as fit, with smaller text only when even three columns don't."""
+    shade = pygame.Surface((W, H), pygame.SRCALPHA)
+    shade.fill((0, 0, 0, 200))
+    screen.blit(shade, (0, 0))
+    pw, ph = min(W - 60, 1400), H - 60
+    panel = pygame.Rect((W - pw) // 2, (H - ph) // 2, pw, ph)
+    pygame.draw.rect(screen, PANEL, panel, border_radius=12)
+    pygame.draw.rect(screen, ACCENT, panel, width=1, border_radius=12)
+    txt(screen, fhead, title, (panel.x + 24, panel.y + 16), ACCENT)
+    txt(screen, fdesc, "H, F1 or ESC closes", (panel.right - 24, panel.y + 22), DIM, anchor="topright")
+    top, bottom = panel.y + 64, panel.bottom - 16
+
+    def layout(keyf, descf, ncols):
+        """(col_w, row_h, [(col, y, key_w)]) or None if the sections don't all fit."""
+        col_w = (pw - 48 - 24 * (ncols - 1)) // ncols
+        row_h = descf.get_linesize()
+        place, col, y = [], 0, top
+        for _, rows in sections:
+            key_w = max(keyf.size(k)[0] for k, _ in rows) + 24      # this section's longest key
+            h = row_h + 8 + sum(len(_wrap(descf, d, col_w - key_w - 9)) * row_h + 2 for _, d in rows) + 12
+            if y + h > bottom and y > top:
+                col, y = col + 1, top
+            if col >= ncols or y + h > bottom:
+                return None
+            place.append((col, y, key_w))
+            y += h
+        return col_w, row_h, place
+
+    fit = None
+    for size in (None, 14, 13, 12, 11):          # None = the HUD's own fonts
+        keyf = fkey if size is None else pygame.font.SysFont("Courier New", size, bold=True)
+        descf = fdesc if size is None else pygame.font.SysFont("Arial", size)
+        for ncols in ((2, 3) if pw >= 1000 else (2,)):
+            fit = layout(keyf, descf, ncols)
+            if fit:
+                break
+        if fit:
+            break
+    if not fit:
+        return
+    col_w, row_h, place = fit
+    for (title_s, rows), (col, y, key_w) in zip(sections, place):
+        x = panel.x + 24 + col * (col_w + 24)
+        section_label(screen, keyf, title_s.upper(), x, y)
+        y += row_h + 8
+        for keys, does in rows:
+            txt(screen, keyf, keys, (x + 9, y), AMBER)
+            for line in _wrap(descf, does, col_w - key_w - 9):
+                txt(screen, descf, line, (x + key_w, y), PRI)
+                y += row_h
+            y += 2

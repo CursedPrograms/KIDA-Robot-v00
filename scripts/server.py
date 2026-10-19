@@ -44,6 +44,7 @@ from shared_state import (
 )
 import fleet_music
 import camera_servo
+import keymap
 from fleet_ladder import FleetLadder
 
 # ── Config ─────────────────────────────────────────────────────────────────────
@@ -531,6 +532,12 @@ def qr_png():
     buf = io.BytesIO()
     img.save(buf, "PNG")
     return Response(buf.getvalue(), mimetype="image/png")
+
+
+@app.route("/keymap")
+def keymap_route():
+    """Every key and gamepad button (keymap.py): the dashboard's KEYS panel."""
+    return jsonify(keymap.as_dict())
 
 
 @app.route("/face/results")

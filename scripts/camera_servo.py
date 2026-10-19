@@ -35,6 +35,8 @@ DEADZONE_PX  = 30        # a face this close to the middle counts as centred: no
 MAX_STEP_DEG = 6         # most it turns per frame while following
 IDLE_DETACH_S = 0.8      # stop driving the pin this long after the last move: no buzzing at rest
 SWEEP_MIN_S, SWEEP_MAX_S = 3.0, 60.0
+SWEEP_FPS    = 10.0
+KEY_STEP_DEG = 10        # one press of a camera key (cam_left / cam_right)
 
 
 def load_settings() -> dict:
@@ -184,6 +186,7 @@ class CameraServo:
             path = os.path.join(self.videos_dir, time.strftime("sweep_%Y%m%d_%H%M%S.mp4"))
             seconds = self.sweep["seconds"]
             t0 = time.monotonic()
+            written = 0
             while not self.sweep.get("cancel"):
                 p = min(1.0, (time.monotonic() - t0) / seconds)
                 self.sweep["progress"] = round(p, 3)
@@ -193,9 +196,15 @@ class CameraServo:
                     bgr = cv2.cvtColor(np.array(frame.convert("RGB")), cv2.COLOR_RGB2BGR)
                     if writer is None:
                         h, w = bgr.shape[:2]
-                        writer = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*"mp4v"), 10.0, (w, h))
+                        writer = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*"mp4v"), SWEEP_FPS, (w, h))
                         self.sweep["file"] = os.path.basename(path)
-                    writer.write(bgr)
+                    # Frames come as fast as ui.py's loop runs (slower while DeepFace works), so
+                    # write each one as often as it takes to keep the video in real time
+                    # (and skip it when they come faster than SWEEP_FPS)
+                    due = int((time.monotonic() - t0) * SWEEP_FPS) + 1
+                    while written < due:
+                        writer.write(bgr)
+                        written += 1
                 if p >= 1.0:
                     break
             logger.info("Sweep recorded: %s", self.sweep["file"])
@@ -249,6 +258,8 @@ def command(body: dict) -> tuple:
     "angle": 0-180, "step": degrees, "on": true/false, "seconds": sweep time}."""
     cs = camera_servo
     action = str(body.get("action", "")).strip().lower()
+    if cs.mode == "sweep" and action in ("centre", "center", "left", "right", "angle"):
+        return {"ok": False, "error": "sweeping: stop the sweep first", **cs.status()}, 409
     try:
         if action in ("centre", "center"):
             cs.set_follow(False)
@@ -272,6 +283,31 @@ def command(body: dict) -> tuple:
     except (KeyError, TypeError, ValueError) as e:
         return {"ok": False, "error": f"bad value: {e}"}, 400
     return {"ok": True, **cs.status()}, 200
+
+
+def key(cmd: str) -> bool:
+    """The camera keys and gamepad (ui.py's command processor): "cam_left", "cam_right",
+    "cam_centre", "cam_pan:<degrees>" (+ = left). Each turns FOLLOW off, like the dashboard's
+    buttons; ignored during a sweep. False if cmd isn't one of them."""
+    cs = camera_servo
+    if cmd == "cam_left":
+        delta = KEY_STEP_DEG
+    elif cmd == "cam_right":
+        delta = -KEY_STEP_DEG
+    elif cmd in ("cam_centre", "cam_center"):
+        delta = None
+    elif cmd.startswith("cam_pan:"):
+        try:
+            delta = max(-MAX_STEP_DEG * 2, min(MAX_STEP_DEG * 2, float(cmd[8:])))
+        except ValueError:
+            return True
+    else:
+        return False
+    if cs.mode == "sweep":
+        return True
+    cs.set_follow(False)
+    cs.centre() if delta is None else cs.nudge(delta)
+    return True
 
 
 if __name__ == "__main__":

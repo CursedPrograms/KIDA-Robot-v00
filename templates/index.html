@@ -23,6 +23,7 @@
       <div class="chip"><span class="cl">TEMP</span><span class="cv" id="v-temp">0C</span></div>
       <div class="chip"><span class="cl">THR</span><span class="cv" id="v-thr">0</span></div>
       <button class="hb" id="btn-lock" title="Wheel lock: locking is free, unlocking needs her password">WHEELS LOCKED</button>
+      <button class="hb" id="btn-keys" title="Every key and gamepad button (H)">KEYS</button>
     </div>
   </header>
 
@@ -35,11 +36,11 @@
 
     <div class="sec">SYSTEM</div>
     <div class="stat"><span class="lbl">CPU</span><span class="val" id="s-cpu">0%</span></div>
-    <div class="bar"><div class="fill" id="b-cpu" style="--c:var(--accent)"></div></div>
+    <div class="bar"><div class="fill" id="b-cpu"></div></div>
     <div class="stat"><span class="lbl">TEMP</span><span class="val" id="s-temp">0°C</span></div>
-    <div class="bar"><div class="fill" id="b-temp" style="--c:var(--amber)"></div></div>
+    <div class="bar"><div class="fill" id="b-temp"></div></div>
     <div class="stat"><span class="lbl">RAM</span><span class="val" id="s-ram">0/1M</span></div>
-    <div class="bar"><div class="fill" id="b-ram" style="--c:var(--blue)"></div></div>
+    <div class="bar"><div class="fill" id="b-ram"></div></div>
 
     <div class="sec">NETWORK</div>
     <div class="net"><span class="lbl">LATENCY</span><span class="val" id="n-lat">N/A</span></div>
@@ -95,11 +96,11 @@
   <aside id="right" class="panel">
     <div class="sec">DIRECTIONAL CONTROL</div>
     <div id="dpad">
-      <button class="hb dp" data-dir="forward"  style="grid-area:f">▲</button>
-      <button class="hb dp" data-dir="left"     style="grid-area:l">◀</button>
-      <button class="hb dp danger stop" data-dir="stop" style="grid-area:s">■</button>
-      <button class="hb dp" data-dir="right"    style="grid-area:r">▶</button>
-      <button class="hb dp" data-dir="backward" style="grid-area:b">▼</button>
+      <button class="hb dp" data-dir="forward">▲</button>
+      <button class="hb dp" data-dir="left">◀</button>
+      <button class="hb dp danger stop" data-dir="stop">■</button>
+      <button class="hb dp" data-dir="right">▶</button>
+      <button class="hb dp" data-dir="backward">▼</button>
     </div>
 
     <div class="sec">SPEED</div>
@@ -115,17 +116,17 @@
       <button class="hb" id="sch-1" data-cmd="scheme_1" data-user>WASD</button>
       <button class="hb" id="sch-2" data-cmd="scheme_2" data-user>QA/WS</button>
       <!-- ARC: W+A etc. curve (inside wheel slows) instead of driving straight -->
-      <button class="hb" id="sch-arc" style="--hc:var(--teal)" data-cmd="arc_toggle" data-user>ARC</button>
+      <button class="hb hc-teal" id="sch-arc" data-cmd="arc_toggle" data-user>ARC</button>
     </div>
 
     <div class="sec">CAPTURE</div>
     <div class="row2 cap">
-      <button class="hb" id="btn-photo" style="--hc:var(--blue)" data-cmd="photo" data-user>PHOTO</button>
-      <button class="hb" id="btn-video" style="--hc:var(--red)" data-cmd="video_toggle" data-user>REC</button>
+      <button class="hb hc-blue" id="btn-photo" data-cmd="photo" data-user>PHOTO</button>
+      <button class="hb hc-red" id="btn-video" data-cmd="video_toggle" data-user>REC</button>
     </div>
     <div class="row2 face">
-      <button class="hb" style="--hc:var(--purple)" data-cmd="face_save">SAVE FACES</button>
-      <button class="hb" id="btn-scan" style="--hc:var(--purple)" data-cmd="face_scan_toggle">SCAN OFF</button>
+      <button class="hb hc-purple" data-cmd="face_save">SAVE FACES</button>
+      <button class="hb hc-purple" id="btn-scan" data-cmd="face_scan_toggle">SCAN OFF</button>
     </div>
 
     <div class="sec">CAMERA <span id="cs-angle">90°</span></div>
@@ -135,8 +136,8 @@
       <button class="hb" data-cs="right">▶</button>
     </div>
     <div class="row2 cam">
-      <button class="hb" id="cs-follow" style="--hc:var(--teal)" title="Manual: you pan it. Follow: it looks at a person">MANUAL</button>
-      <button class="hb" id="cs-sweep" style="--hc:var(--red)" title="Record a sweep from one end to the other">SWEEP REC</button>
+      <button class="hb hc-teal" id="cs-follow" title="Manual: you pan it. Follow: it looks at a person">MANUAL</button>
+      <button class="hb hc-red" id="cs-sweep" title="Record a sweep from one end to the other">SWEEP REC</button>
     </div>
     <label class="cs-slider">SWEEP TIME <input type="range" id="cs-time" min="3" max="60" value="10"> <span id="cs-time-v">10 s</span></label>
   </aside>
@@ -155,6 +156,14 @@
     <span id="version">KIDA v2.4 · RASPBERRY PI</span>
   </footer>
 
+</div>
+
+<!-- The keys window (KEYS button or H): filled from /keymap (scripts/keymap.py) -->
+<div id="keys" hidden>
+  <div id="keys-box" class="panel">
+    <div id="keys-head"><span id="keys-title">KEYS</span><button class="hb" id="keys-close">CLOSE</button></div>
+    <div id="keys-list"></div>
+  </div>
 </div>
 <script src="/static/js/main.js"></script>
 </body>

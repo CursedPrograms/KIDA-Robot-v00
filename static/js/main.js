@@ -83,7 +83,8 @@ const held = new Set();
 document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;   // leave browser shortcuts (Ctrl+C etc.) alone
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-  if (k === 'Tab' || k === ' ') e.preventDefault();
+  if (k === 'h' || k === 'F1' || (k === 'Escape' && keysOpen())) { e.preventDefault(); if (!e.repeat) toggleKeys(k !== 'Escape' && !keysOpen()); return; }
+  if (k === 'Tab' || k === ' ' || k.startsWith('Arrow')) e.preventDefault();
   if ('wasdq'.includes(k) && k.length === 1) { held.add(k); updateDrive(); }
   if (e.repeat) return;
 
@@ -94,6 +95,9 @@ document.addEventListener('keydown', e => {
   else if (k === 'o')   send(modeCmd('AUTONOMOUS'));
   else if (k === 'l')   send(modeCmd('LINE'));
   else if (k === 'x' && canSpeed()) send('speed');
+  else if (k === 'ArrowLeft')  send('cam_left');     // the camera's servo (FOLLOW off)
+  else if (k === 'ArrowRight') send('cam_right');
+  else if (k === 'ArrowUp')    send('cam_centre');
   else if (isUser()) {
     if      (k === '1') send('scheme_1');
     else if (k === '2') send('scheme_2');
@@ -162,8 +166,9 @@ joy.addEventListener('pointercancel', joyUp);
 // Y arc, LB/RB mode, Back save faces, Start music. Browsers only report a pad
 // after a button is pressed while this page is open.
 const PAD_BUTTONS = { 0: ['speed'], 1: ['_mode_user', 'stop'], 2: ['photo'], 3: ['arc_toggle'],
-                      8: ['face_save'], 9: ['music_toggle'] };
-let padState = null, padHeld = new Set();
+                      8: ['face_save'], 9: ['music_toggle'], 11: ['cam_centre'] };
+const CAM_PAN_MS = 100;    // right stick: a camera pan this often
+let padState = null, padHeld = new Set(), lastPan = 0;
 function pollGamepad() {
   const gp = [...(navigator.getGamepads ? navigator.getGamepads() : [])].find(g => g && g.connected);
   if (!gp) { padState = null; padHeld.clear(); return; }
@@ -180,7 +185,39 @@ function pollGamepad() {
   padHeld = now;
   padState = { lx: gp.axes[0] || 0, ly: -(gp.axes[1] || 0), rx: gp.axes[2] || 0, ry: -(gp.axes[3] || 0),
                up: btn(12), down: btn(13), left: btn(14), right: btn(15) };
+  if (Math.abs(padState.rx) > 0.3 && performance.now() - lastPan >= CAM_PAN_MS) {   // right stick pans the camera
+    send(`cam_pan:${(-padState.rx * 7.5).toFixed(1)}`);
+    lastPan = performance.now();
+  }
 }
+
+// ── The keys window (KEYS button, H or F1): every key and button, from /keymap ─
+const keysOpen = () => !$('keys').hidden;
+let keymapLoaded = false;
+function toggleKeys(open) {
+  $('keys').hidden = !open;
+  if (!open || keymapLoaded) return;
+  fetch('/keymap').then(r => r.json()).then(km => {
+    keymapLoaded = true;
+    setText('keys-title', `${km.robot} KEYS`);
+    const list = $('keys-list');
+    list.textContent = '';
+    for (const sec of [...km.keyboard, ...km.gamepad]) {
+      const box = Object.assign(document.createElement('div'), { className: 'keys-sec' });
+      box.appendChild(Object.assign(document.createElement('h3'), { textContent: sec.title.toUpperCase() }));
+      for (const row of sec.keys) {
+        const r = Object.assign(document.createElement('div'), { className: 'keys-row' });
+        r.append(Object.assign(document.createElement('kbd'), { textContent: row.keys }),
+                 Object.assign(document.createElement('span'), { textContent: row.does }));
+        box.appendChild(r);
+      }
+      list.appendChild(box);
+    }
+  }).catch(() => setText('keys-list', 'Could not load the keys from the robot.'));
+}
+$('btn-keys').addEventListener('click', () => toggleKeys(!keysOpen()));
+$('keys-close').addEventListener('click', () => toggleKeys(false));
+$('keys').addEventListener('click', e => { if (e.target === $('keys')) toggleKeys(false); });
 
 // ── Render /status ───────────────────────────────────────────────────────────
 const setText = (id, v) => { const el = $(id); if (el.textContent !== String(v)) el.textContent = v; };

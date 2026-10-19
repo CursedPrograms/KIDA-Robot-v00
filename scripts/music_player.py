@@ -16,13 +16,21 @@ os.environ.setdefault("SDL_AUDIODRIVER", "alsa")
 AUDIO_DEVICE = os.environ.get("KIDA_AUDIO_DEVICE", "hw:0,0")
 
 
-def _init_mixer() -> None:
+def _init_mixer() -> bool:
+    """True once the mixer is open. False with no audio device at all: then music is off,
+    and everything else still runs."""
     try:
         pygame.mixer.init(devicename=AUDIO_DEVICE)
         logger.info("Audio on ALSA device %s", AUDIO_DEVICE)
+        return True
     except pygame.error as e:
         logger.warning("Could not open %s (%s); falling back to default audio device", AUDIO_DEVICE, e)
+    try:
         pygame.mixer.init()
+        return True
+    except pygame.error as e:
+        logger.error("No audio device (%s) — music off", e)
+        return False
 
 
 class MusicPlayer:
@@ -38,8 +46,6 @@ class MusicPlayer:
     """
 
     def __init__(self, folder: str, shuffle: bool = False):
-        _init_mixer()
-
         self.current_track: str = ""
         self.current_path:  str = ""     # full path of current_track (for the waveform analyser)
         self.playing:       bool = False
@@ -49,6 +55,9 @@ class MusicPlayer:
         self._index       = 0
 
         self.SONG_END = pygame.USEREVENT + 1
+        self._playlist = []
+        if not _init_mixer():
+            return                                    # no audio: an empty playlist, so nothing plays
         pygame.mixer.music.set_endevent(self.SONG_END)
 
         pattern = os.path.join(folder, "*.mp3")
@@ -103,7 +112,11 @@ class MusicPlayer:
     def start_loaded(self) -> None:
         """Starts what load_number() loaded, at once."""
         self._manual_stop = False
-        pygame.mixer.music.play()
+        try:
+            pygame.mixer.music.play()
+        except pygame.error as e:
+            logger.error("Failed to start %s: %s", self._loaded, e)
+            return
         self.current_track = os.path.basename(self._loaded)
         self.current_path  = self._loaded
         self.playing       = True
@@ -111,7 +124,8 @@ class MusicPlayer:
         logger.info("Now playing (with the fleet): %s", self.current_track)
 
     def stop(self) -> None:
-        pygame.mixer.music.stop()
+        if pygame.mixer.get_init():
+            pygame.mixer.music.stop()
         self._manual_stop  = True
         self.playing        = False
         self.paused         = False
