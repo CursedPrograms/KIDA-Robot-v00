@@ -37,13 +37,13 @@ def sweep_test():
             print("\n--- Cycle Complete. Restarting in 2s... ---")
             sleep(2)
 
-except KeyboardInterrupt:
-    print("\nStopping tests...")
-finally:
-    # Release the pins
-    for s in servos:
-        s.value = None
-    print("Cleanup complete.")
+    except KeyboardInterrupt:
+        print("\nStopping tests...")
+    finally:
+        # Release the pins
+        for s in servos:
+            s.value = None
+        print("Cleanup complete.")
 
 if __name__ == "__main__":
     sweep_test()
