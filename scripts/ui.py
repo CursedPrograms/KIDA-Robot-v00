@@ -45,6 +45,7 @@ try:
     from audio_analysis import AudioAnalyzer
 except Exception as _e:          # pydub / ffmpeg missing — waveform falls back to the animation
     AudioAnalyzer = None
+    _audio_error = _e            # `_e` itself is gone once this block ends
 
 from shared_state      import (
     command_queue,
@@ -79,7 +80,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("kida.main")
 if AudioAnalyzer is None:
-    logger.warning("audio_analysis unavailable (%s) — music waveform will be animated, not measured", _e)
+    logger.warning("audio_analysis unavailable (%s) — music waveform will be animated, not measured", _audio_error)
 
 # Repo root — photos/videos/faces/music live here no matter where KIDA is started from
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
