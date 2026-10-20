@@ -43,6 +43,7 @@ Core Features
 - [x] Live Surveillance: High-definition video streaming with on-demand image and video capture.
 - [x] Biometric Inference: Edge-based vision processing for real-time Gender and Age detection.
 - [x] Reactive Autonomy: Integrated Ultrasonic obstacle avoidance and high-contrast line-following logic.
+- [x] Wall Guard: she won't drive forward into anything within 15 cm, whatever is driving her (keyboard, tank, gamepad, web, line following); turning and reversing still work, so she can always get away (`motor_control.WALL_GUARD_M`).
 - [x] Visual Feedback: Customizable RGB lighting for status signaling and environmental illumination.
 
 </details>
