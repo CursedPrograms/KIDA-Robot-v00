@@ -54,9 +54,10 @@ from shared_state      import (
     _face_results, _face_lock,
     _face_frame_q, _face_enabled, _deepface_ok,
     publish_frame, frame_wanted,
-    motor_lock, lock_wheels, unlock_wheels, music_ref,
+    motor_lock, lock_wheels, unlock_wheels, music_ref, body_ref,
 )
 from server            import run_flask, shutdown_zeroconf, near
+import mind_drive
 from system_monitor    import start_stats_thread, get_local_ip
 from face_detector     import start_face_thread
 from camera_servo      import camera_servo, key as camera_key
@@ -98,6 +99,7 @@ _MODE_MAP = {
     "_mode_autonomous": Mode.AUTONOMOUS,
     "_mode_line":       Mode.LINE,
     "_mode_face":       Mode.FACE,
+    "_mode_mind":       Mode.MIND,      # only while a mind host checks in (mind_drive.py)
 }
 
 
@@ -166,6 +168,14 @@ def _make_command_processor(take_photo, toggle_video, music, speed_levels):
                 pass
         elif cmd == "stop":
             state["remote_until"] = 0.0
+        elif cmd.startswith("_mind:"):           # her MIND's moves (mind_drive.py), only obeyed in MIND
+            if cmd == "_mind:stop":
+                if state["remote"] and state["remote"][0] == "mind":
+                    state["remote_until"] = 0.0
+            else:
+                drive_intent("mind", cmd[6:])
+        elif cmd == "_mode_mind" and not mind_drive.host_alive():
+            logger.info("MIND needs a PC controller that can think, connected and checking in")
         elif cmd == "arc_toggle":
             state["arc_turn"] = not state["arc_turn"]
         elif cmd in ("arc_on", "arc_off"):
@@ -273,6 +283,7 @@ def main() -> None:
     music  = MusicPlayer(os.path.join(_ROOT, "audio", "music"))
     music_ref["player"] = music      # RIFT's music together (fleet_music.py, POST /music)
     motors = MotorController()
+    body_ref["motors"] = motors      # her MIND's wall check and distance (mind_drive.py)
 
     try:    avoider = ObstacleAvoidance(motors=motors)
     except Exception as e:
@@ -625,6 +636,8 @@ def main() -> None:
                         ds["mode"] = switch_mode(ds["mode"], Mode.AUTONOMOUS, ctx)
                     elif k == pygame.K_l:
                         ds["mode"] = switch_mode(ds["mode"], Mode.LINE, ctx)
+                    elif k == pygame.K_9:
+                        process_cmd("_mode_mind", ctx)
                     elif k == pygame.K_k:
                         # ← wheel lock on/off: at the robot, no password (you're the credential)
                         if motor_lock.is_set(): unlock_wheels()
@@ -702,9 +715,25 @@ def main() -> None:
             # ── Drive logic ─────────────────────────────────────────────────────────
             mode = ds["mode"]
             # what KIDA tells the other robots (fleet_near.py), set once per frame
-            near.set_state("driving" if mode in (Mode.AUTONOMOUS, Mode.LINE) else "user" if mode == Mode.USER else "parked")
+            near.set_state("driving" if mode in (Mode.AUTONOMOUS, Mode.LINE, Mode.MIND) else "user" if mode == Mode.USER else "parked")
 
-            if mode == Mode.AUTONOMOUS:
+            if mode == Mode.MIND and not mind_drive.host_alive():
+                # her mind host went quiet for 5 s: stand, back to USER
+                logger.info("MIND: the PC controller went quiet, back to USER")
+                ds["remote_until"] = 0.0
+                ds["mode"] = mode = switch_mode(mode, Mode.USER, ctx)
+
+            if mode == Mode.MIND:
+                # only her mind's own moves drive her ("_mind:<dir>", resent while a step lasts)
+                remote = ds["remote"] if time.monotonic() < ds["remote_until"] else None
+                if remote and remote[0] == "mind":
+                    drive_dir(remote[1])
+                else:
+                    motors.stop()
+                    set_led((255, 120, 0))
+                    ds["direction"] = "THINKING"
+
+            elif mode == Mode.AUTONOMOUS:
                 avoiding = False
                 way = near.give_way(can_turn=True)   # another robot close with right of way: stop, then turn away
                 if way == "wait":

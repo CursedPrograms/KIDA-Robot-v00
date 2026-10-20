@@ -39,6 +39,7 @@ class RemoteClient:
         self.jpeg_seq  = 0
         self.qr_png    = None
         self.connected = False
+        self.mind_host = False   # drive_mind.py: this PC can drive her mind, so check in (ctl=1)
         self._running  = True
         self._session  = requests.Session()   # status polling
         self._cmd_sess = requests.Session()   # commands — sessions aren't thread-safe to share
@@ -56,7 +57,8 @@ class RemoteClient:
     def _poll_status(self) -> None:
         while self._running:
             try:
-                self.status    = self._session.get(f"{self.base_url}/status", timeout=1.5).json()
+                url = f"{self.base_url}/status" + ("?ctl=1" if self.mind_host else "")
+                self.status    = self._session.get(url, timeout=1.5).json()
                 self.connected = True
             except Exception:
                 self.connected = False

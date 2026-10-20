@@ -41,6 +41,7 @@ class Mode(IntEnum):
     AUTONOMOUS = 1   # obstacle-avoidance loop
     LINE       = 2   # line-follower loop
     FACE       = 3   # face / age / gender scan
+    MIND       = 4   # the PC controller's LLM drives her (mind_drive.py); not a tab
 
 
 # ── Context ───────────────────────────────────────────────────────────────────
@@ -141,6 +142,23 @@ def _on_exit_face(ctx: ModeContext) -> None:
     logger.info("Mode <- FACE  (DeepFace worker disabled, results cleared)")
 
 
+def _on_enter_mind(ctx: ModeContext) -> None:
+    ctx.motors.stop()
+    ctx.set_led((255, 120, 0))   # amber = thinking
+    logger.info("Mode -> MIND  (the PC controller's mind drives)")
+
+
+def _on_exit_mind(ctx: ModeContext) -> None:
+    try:
+        import mind_drive
+        mind_drive.stop()
+    except Exception:
+        pass
+    ctx.motors.stop()
+    ctx.set_led((0, 0, 0))
+    logger.info("Mode <- MIND")
+
+
 # ── Dispatch tables ───────────────────────────────────────────────────────────
 
 _ON_ENTER: dict = {
@@ -148,6 +166,7 @@ _ON_ENTER: dict = {
     Mode.AUTONOMOUS: _on_enter_autonomous,
     Mode.LINE:       _on_enter_line,
     Mode.FACE:       _on_enter_face,
+    Mode.MIND:       _on_enter_mind,
 }
 
 _ON_EXIT: dict = {
@@ -155,6 +174,7 @@ _ON_EXIT: dict = {
     Mode.AUTONOMOUS: _on_exit_autonomous,
     Mode.LINE:       _on_exit_line,
     Mode.FACE:       _on_exit_face,
+    Mode.MIND:       _on_exit_mind,
 }
 
 

@@ -74,6 +74,7 @@ The same keys on her own screen (scripts/ui.py), the PC controller (controller/m
 | <kbd>U</kbd> | USER: you drive |
 | <kbd>O</kbd> | AUTONOMOUS: obstacle avoidance |
 | <kbd>L</kbd> | LINE FOLLOW |
+| <kbd>9</kbd> | MIND: the PC controller's mind drives her (only while one that can think is connected) |
 
 **Camera**
 
@@ -370,6 +371,20 @@ chmod +x make_executables.sh
 
 > [!IMPORTANT]
 > Ensure you have granted permissions via chmod before attempting to run the .sh files for the first time.
+
+---
+
+## 🧠 MIND mode: an LLM drives her
+
+Her PC controller's LLM drives her, stop-look-think-move: she stands, looks, thinks (you can read her thinking on the controller), says something in her own voice from her own speaker, and makes one short move. The mind runs on the PC (`controller/drive_mind.py`, the fleet's shared `scripts/mind.py`); her Pi only does what it's asked.
+
+- **Which PC:** an x86 Windows or Linux PC with 8 GB+ RAM and a GTX 1050 or better, with [Ollama](https://ollama.com). The model is sized to the GPU (qwen3). Add a vision model (`ollama pull gemma3:4b-it-qat`) and she sees with her camera too.
+- **Start it:** run the controller (`controller/run.bat <her-ip>`), then press <kbd>9</kbd> there or on her. Any other mode (<kbd>U</kbd>, <kbd>O</kbd>, <kbd>L</kbd>, the gamepad's B) ends it, and so does closing the controller: she stands after 5 s without it.
+- **Looking around:** her camera is on a servo, so one of her moves is `look_around`. She turns her camera left, ahead and right, and the vision model lists what's at each side. She remembers it for a minute, and her camera is centred again before she drives.
+- **Her reflexes stay on:** the wheel lock (signing in as her mind never unlocks it), and the wall guard: she won't drive forward into anything within 15 cm.
+- **The PIN:** the controller signs in with her `MotorPassword` (`KIDA_PIN` on the PC), or `1234` while that's empty.
+
+Her side of it is `scripts/mind_drive.py`: `/unlock?pw=&ctl=1`, `/status?ctl=1`, `/mode?m=mind`, `/mind?act=fwd|bwd|left|right|stop&steps=1-4`, `/look?at=left|centre|right` (a JPEG) and `POST /speak` (a WAV).
 
 ---
 

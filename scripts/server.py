@@ -19,6 +19,9 @@ Like the rest of the fleet (fleet TODO §1, §7):
   POST /music {"action", "track", "at"}   play along when RIFT conducts (fleet_music.py)
   /status                           + motor_lock, moving, music ("playing"/"stopped"), uptime_s
   and every 15 s her state to NINA (POST :5012/report, on RIFT's PC).
+
+Her MIND mode (fleet TODO §10, mind_drive.py): /unlock?pw=&ctl=1, /status?ctl=1 (+ mindHost,
+mindSteps, blocked, distance_cm), /mode?m=mind, /mind?act=&steps=, /look?at=, POST /speak.
 """
 
 import io
@@ -45,6 +48,7 @@ from shared_state import (
 import fleet_music
 import camera_servo
 import keymap
+import mind_drive
 from fleet_ladder import FleetLadder
 
 # ── Config ─────────────────────────────────────────────────────────────────────
@@ -71,6 +75,10 @@ FLEET_CAPS = ("wasd,tank,obstacle_avoidance,line_follow,camera,face_detection,mu
 
 NINA_PORT     = 5012   # NINA (the fleet's caretaker) runs next to RIFT
 NINA_REPORT_S = 15
+
+# A mind host signs in with MotorPassword, or the fleet's PIN while that's empty. Signing in
+# never unlocks her wheels; it's a safety catch, not security.
+MIND_HOST_PIN = "1234"
 
 
 def _motor_password() -> str:
@@ -214,7 +222,9 @@ def _status() -> dict:
               music="playing" if st.get("music_playing") else "stopped",
               uptime_s=int(time.time() - STARTED),
               ladder=LADDER.status() if LADDER else None,
-              camera_servo=camera_servo.camera_servo.status())
+              camera_servo=camera_servo.camera_servo.status(),
+              **mind_drive.status_fields())
+    st["distances_cm"] = {"front": st["distance_cm"]} if st["distance_cm"] is not None else {}
     return st
 
 
@@ -230,7 +240,8 @@ def _nina_report() -> None:
         st = _status()
         body = {"name": THIS_NAME, "state": {
             "moving": st["moving"], "turning": st.get("direction") in ("LEFT", "RIGHT"),
-            "wheels_locked": st["motor_lock"], "music": st["music"], "mode": st.get("mode")}}
+            "wheels_locked": st["motor_lock"], "music": st["music"], "mode": st.get("mode")},
+            "sensors": st["distances_cm"]}     # her front sensor, for NINA's checkups (cm)
         try:
             session.post(f"{rift.rsplit(':', 1)[0]}:{NINA_PORT}/report", json=body, timeout=2)
         except requests.RequestException:
@@ -376,6 +387,8 @@ def near_robots():
 
 @app.route("/status")
 def status():
+    if request.args.get("ctl") == "1":          # her mind host checking in
+        mind_drive.check_in(request.remote_addr)
     return jsonify(_status())
 
 
@@ -396,6 +409,57 @@ def motorlock_off():
         return "DENIED", 403
     unlock_wheels()
     return "OK", 200
+
+
+@app.route("/unlock", methods=["GET", "POST"])
+def unlock():
+    """The fleet's /unlock?pw=: her wheels, like /motorlockOff. With ctl=1 a PC controller that can
+    think signs in as her mind host instead, and her wheel lock stays as it is."""
+    if request.values.get("ctl") != "1":
+        return motorlock_off()
+    if request.values.get("pw", "") != (_motor_password() or MIND_HOST_PIN):
+        return "DENIED", 403
+    mind_drive.sign_in(request.remote_addr)
+    return jsonify({"ok": True, "mindHost": 1, "motor_lock": motor_lock.is_set()})
+
+
+# ── Her MIND (mind_drive.py; the mind runs on the PC controller) ───────────────
+def _not_host():
+    return jsonify({"ok": False, "error": "only her mind host (/unlock?pw=&ctl=1, then /status?ctl=1)"}), 403
+
+
+@app.route("/mind")
+def mind_route():
+    if not mind_drive.is_host(request.remote_addr):
+        return _not_host()
+    out, code = mind_drive.act(request.args.get("act", ""), request.args.get("steps", 1))
+    return jsonify(out), code
+
+
+@app.route("/look")
+def look_route():
+    """Her camera turns left / centre / right, and a JPEG of what she sees there."""
+    if not mind_drive.is_host(request.remote_addr):
+        return _not_host()
+    if not mind_drive.in_mind():
+        return jsonify({"ok": False, "error": "she's not in MIND mode"}), 409
+    jpg, why = mind_drive.look(request.args.get("at", "centre"))
+    if jpg is None:
+        return jsonify({"ok": False, "error": why}), 409
+    return Response(jpg, mimetype="image/jpeg")
+
+
+@app.route("/speak", methods=["POST"])
+def speak_route():
+    """A WAV (mind.windows_wav on the PC) played on her speaker."""
+    if not mind_drive.is_host(request.remote_addr):
+        return _not_host()
+    try:
+        from voice import voice
+        ok = voice.play_wav(request.get_data())
+    except Exception:
+        ok = False
+    return jsonify({"ok": ok}), 200 if ok else 503
 
 
 # ── The fleet's "do" (RIFT relays POST /talk verb do here) ─────────────────────
@@ -419,7 +483,7 @@ def do_action():
     if action == "stop":                   # always works: ends a timed drive, and autonomous / line driving
         _drive["until"] = 0.0
         command_queue.put("stop")
-        if _robot_state.get("mode") in ("AUTONOMOUS", "LINE"):
+        if _robot_state.get("mode") in ("AUTONOMOUS", "LINE", "MIND"):
             command_queue.put("_mode_USER")
         return jsonify({"ok": True, "action": action})
     if action == "lock_wheels":
@@ -503,10 +567,13 @@ def set_speed_route():
         return jsonify({"error": str(e)}), 400
 
 
-@app.route("/mode", methods=["POST"])
+@app.route("/mode", methods=["GET", "POST"])
 def set_mode_route():
-    mode_str = str(_json_body().get("mode", "")).upper()
-    if mode_str in ("USER", "AUTONOMOUS", "LINE", "FACE"):
+    """POST {"mode": ...} or GET /mode?m=... (the fleet's MIND contract)."""
+    mode_str = str(request.args.get("m") or _json_body().get("mode", "")).upper()
+    if mode_str == "MIND" and not mind_drive.host_alive():
+        return jsonify({"error": "MIND needs a PC controller that can think, connected and checking in"}), 409
+    if mode_str in ("USER", "AUTONOMOUS", "LINE", "FACE", "MIND"):
         command_queue.put(f"_mode_{mode_str}")
         return jsonify({"mode": mode_str})
     return jsonify({"error": "invalid mode"}), 400

@@ -29,6 +29,7 @@ KEYBOARD = [
         ("U", "USER: you drive"),
         ("O", "AUTONOMOUS: obstacle avoidance"),
         ("L", "LINE FOLLOW"),
+        ("9", "MIND: the PC controller's mind drives her (only while one that can think is connected)"),
     ]),
     ("Camera", [
         ("← / →", "pan the camera left / right (FOLLOW off)"),

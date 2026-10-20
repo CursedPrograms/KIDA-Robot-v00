@@ -111,6 +111,20 @@ class _Voice:
             logger.debug("voice: play failed on line %d (%s)", n, e)
             return False
 
+    def play_wav(self, data: bytes) -> bool:
+        """Play a whole WAV file's bytes (her MIND's words: POST /speak). Works without voice lines."""
+        if self._channel is None:
+            return False
+        try:
+            import io
+            snd = pygame.mixer.Sound(file=io.BytesIO(data))
+            self._channel.stop()
+            self._channel.play(snd)
+            return True
+        except Exception as e:
+            logger.debug("voice: WAV play failed (%s)", e)
+            return False
+
     def say_mode(self, mode_value: int) -> bool:
         line = _MODE_LINE.get(int(mode_value))
         return self.say(line) if line is not None else False

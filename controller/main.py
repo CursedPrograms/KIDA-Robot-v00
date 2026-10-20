@@ -46,6 +46,8 @@ from render_helpers import (
 from drive_mix      import keys_to_wheels, stick_to_wheels, tank_sticks_to_wheels, wheels_to_command
 from gamepad        import Gamepad, button_commands
 from remote_client  import RemoteClient
+import mind_panel                       # scripts/mind_panel.py: her mind's thinking, as in the other controllers
+from drive_mind     import DriveMind    # her MIND mode: this PC drives her when it can think
 
 APP_NAME     = "KIDA — Remote Controller"
 HEARTBEAT_S  = 0.25   # the robot stops a remote drive it hasn't heard for 0.8 s
@@ -85,6 +87,7 @@ def run_controller() -> None:
     base_url, fullscreen = _resolve_robot_url()
     print(f"{APP_NAME} - connecting to {base_url}")
     remote = RemoteClient(base_url)
+    brain  = DriveMind(remote)
 
     pygame.init()
     pygame.display.set_caption(APP_NAME)
@@ -229,6 +232,13 @@ def run_controller() -> None:
             txt(screen, fmono_md, "[ NO CONNECTION TO ROBOT ]",
                 (W // 2, TOP_H + lay["CAM_H"] // 2 + 60), RED, anchor="center")
 
+        brain.update(status)
+        if brain.mind.on or mode == Mode.MIND:   # her thinking, over the bottom of the camera
+            ph = min(170, lay["CAM_H"] // 2)
+            mind_panel.draw(screen, pygame.Rect(lay["CAM_X"] + 8, lay["CAM_Y"] + lay["CAM_H"] - ph - 8,
+                                                lay["CAM_W"] - 16, ph),
+                            brain.mind, fmono_sm, fmono_xs, "KIDA-00", note="9: MIND, U: you drive")
+
         if show_keys:
             render_keymap(screen, f"{keymap.ROBOT} KEYS", keymap.sections(), W, H,
                           fmono_md, fmono_sm, flabel_s)
@@ -272,6 +282,11 @@ def run_controller() -> None:
                     remote.send(_mode_cmd(Mode.AUTONOMOUS))
                 elif k == pygame.K_l:
                     remote.send(_mode_cmd(Mode.LINE))
+                elif k == pygame.K_9:
+                    if brain.capable and status.get("mindHost"):
+                        remote.send(_mode_cmd(Mode.MIND))
+                    else:
+                        print(f"MIND: not available: {brain.why or 'she has not heard this PC check in yet'}")
                 elif k == pygame.K_x and mode in (Mode.USER, Mode.AUTONOMOUS):
                     remote.send("speed")   # autonomous cruises at the selected speed too
                 elif mode == Mode.USER:
@@ -372,6 +387,8 @@ def run_controller() -> None:
         clock.tick(25)
 
     # ── Cleanup — never leave the robot driving after this window closes ──────
+    if brain.mind.on:
+        brain.mind.stop()
     remote.send_now("stop")
     remote.stop()
     pygame.quit()

@@ -39,6 +39,7 @@ def unlock_wheels() -> None:
 
 STARTED = time.time()               # for /status uptime_s
 music_ref: dict = {"player": None}  # ui.py's MusicPlayer, for fleet_music.py (/music)
+body_ref: dict = {"motors": None}   # ui.py's MotorController, for mind_drive.py (wall guard, distance)
 
 # ── Robot telemetry ────────────────────────────────────────────────────────────
 _robot_state: dict = {
