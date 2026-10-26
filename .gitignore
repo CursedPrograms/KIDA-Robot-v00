@@ -163,3 +163,7 @@ cython_debug/
 photos/
 videos/
 faces/
+
+# The PC controller: this PC's THEME, the session test's screenshots
+controller/controller_settings.json
+controller/session_test_*.png

@@ -53,6 +53,16 @@ class RemoteClient:
         self._running = False
         self._outbox.put(None)           # wake the sender so it can exit
 
+    def retarget(self, base_url: str) -> None:
+        """Talk to another robot from now on (EMULATE: her pretend self on this PC, or back)."""
+        self.base_url  = base_url.rstrip("/")
+        self.connected = False
+        self.status, self.stats = {}, {}
+        self.jpeg = None
+        if self.qr_png is not None:      # the QR fetcher is done: start it again for the new one
+            self.qr_png = None
+            threading.Thread(target=self._fetch_qr, daemon=True).start()
+
     # ── Polling ────────────────────────────────────────────────────────────────
     def _poll_status(self) -> None:
         while self._running:
@@ -76,8 +86,9 @@ class RemoteClient:
     def _fetch_qr(self) -> None:
         while self._running and self.qr_png is None:
             try:
-                r = requests.get(f"{self.base_url}/qr.png", timeout=3)
-                if r.ok and r.content:
+                url = self.base_url
+                r = requests.get(f"{url}/qr.png", timeout=3)
+                if r.ok and r.content and self.base_url == url:
                     self.qr_png = r.content
                     return
             except Exception:
@@ -88,11 +99,15 @@ class RemoteClient:
     def _stream_cam(self) -> None:
         while self._running:
             try:
-                resp = requests.get(f"{self.base_url}/video_feed", stream=True, timeout=5)
+                url  = self.base_url
+                resp = requests.get(f"{url}/video_feed", stream=True, timeout=5)
                 buf  = b""
                 for chunk in resp.iter_content(chunk_size=4096):
                     if not self._running:
                         return
+                    if self.base_url != url:     # retargeted: this stream is the old robot's
+                        resp.close()
+                        break
                     buf += chunk
                     # Take every complete JPEG in the buffer and keep the newest,
                     # so the picture never falls behind the live stream

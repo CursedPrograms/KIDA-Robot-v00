@@ -101,6 +101,14 @@ The same keys on her own screen (scripts/ui.py), the PC controller (controller/m
 | <kbd>H or F1</kbd> | this keys window |
 | <kbd>ESC</kbd> | quit |
 
+**PC controller only (controller/main.py)**
+
+| Key | Does |
+| :--- | :--- |
+| <kbd>Backspace</kbd> | STOP: motors off in any mode, back to USER (as the STOP button and the D-pad's middle) |
+| <kbd>Drive keys, pad, D-pad</kbd> | in any mode: driving takes over (back to USER, you drive) |
+| <kbd>STOP / EMULATE / THEME</kbd> | the top bar: stop in any mode / her pretend self on this PC / DEFAULT, LIGHT, CUSTOM colours |
+
 **Gamepad (on her USB or the PC's)**
 
 | Key | Does |
@@ -128,6 +136,7 @@ The same keys on her own screen (scripts/ui.py), the PC controller (controller/m
 | <kbd>Button 1</kbd> | stop (as B) |
 | <kbd>Button 2</kbd> | photo (as X) |
 | <kbd>Button 3</kbd> | ARC turns on / off (as Y) |
+
 <!-- KEYMAP:END -->
 
 > [!TIP]
@@ -290,6 +299,17 @@ KIDA uses the V2 robot Hat from the [Freenove Tank Robot](https://github.com/Fre
 | **Password** | `12345678` |
 | **Robot server / web controller** | `http://<KIDA's IP>:5003` |
 
+### PC controller
+
+`controller/run.bat <her-ip>` (or `run.ps1`, `run.sh`): her own window on another PC, plus the PC's buttons along the top bar.
+
+- **EMULATE**: her pretend self on this PC (`controller/fake_kida00.py`, her Flask routes on `127.0.0.1:5003`, a room to drive round), so every key and button can be tried with no robot. With no IP given, the controller starts on it.
+- **THEME**: DEFAULT (her HUD's colours), LIGHT, CUSTOM, all from `colour_scheme.xml`; CUSTOM's colours go in `controller/controller_settings.json` (this PC's, not in git).
+- **STOP** (or Backspace, or the D-pad's middle): motors off in any mode, back to USER.
+- **Driving takes over**: a drive key, the pad or the D-pad while she drives herself (AUTONOMOUS, LINE, MIND) puts her back in USER, so letting go stops her.
+- **Settings stick**: a mode, speed, scheme, ARC, REC or music change is sent again until her status says so.
+- **Session test**: `controller/venv/Scripts/python controller/session_test.py` drives the controller on her pretend self like a person and checks every response.
+
 ### RIFT Integration
 To connect via [RIFT](https://github.com/CursedPrograms/RIFT), ensure KIDA-00 is active on:
 * `<KIDA's IP>:5003` (`scripts/server.py`)
@@ -426,7 +446,7 @@ A Pi can't speak ESP-NOW, so KIDA-00 uses the Pi's own **Bluetooth LE**: she bea
   <img src="images/screenshots/web-dashboard.png" alt="Web dashboard" width="640"/>
 </div>
 
-<p align="center"><i>Remote controller, Web dashboard. Captured without a robot connected, so live values show their offline state.</i></p>
+<p align="center"><i>Remote controller (on her pretend self, EMULATE), Web dashboard (captured without a robot connected, so live values show their offline state).</i></p>
 
 ---
 

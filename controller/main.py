@@ -11,8 +11,14 @@ and state come from the robot's Flask server and every key/click is sent back
 as the same command string ui.py's command processor understands.
 
 Usage:
-    python main.py <robot-ip-or-url> [--port 5003] [--fullscreen]
+    python main.py <robot-ip-or-url> [--port 5003] [--fullscreen] [--emulate]
     ROBOT_URL=http://192.168.1.50:5003 python main.py
+    python main.py                       no robot: EMULATE, her pretend self on this PC (fake_kida00.py)
+
+On top of her own window, the PC's (fleet TODO section 13): EMULATE / THEME / STOP along the top
+bar, a drive input in any mode takes over (back to USER, you drive), STOP (the button, Backspace,
+the D-pad's middle) stops her in any mode, and settings (mode, speed, scheme, ARC, REC, music) are
+sent again until her status says so.
 """
 
 import argparse
@@ -36,40 +42,75 @@ import pygame
 import hud_layout
 import keymap
 from mode_control   import Mode
+import render_helpers as rh             # THEME swaps its colours (on this PC only)
 from render_helpers import (
-    hline, vline, txt,
+    hline, vline, txt, btn,
     render_camera, render_info_strip, render_top_bar,
     render_left_panel, render_right_panel, render_bottom_bar,
     render_joystick, joystick_value, render_keymap,
-    build_background, RED, CAM_BG,
+    build_background,
 )
 from drive_mix      import keys_to_wheels, stick_to_wheels, tank_sticks_to_wheels, wheels_to_command
 from gamepad        import Gamepad, button_commands
 from remote_client  import RemoteClient
 import mind_panel                       # scripts/mind_panel.py: her mind's thinking, as in the other controllers
 from drive_mind     import DriveMind    # her MIND mode: this PC drives her when it can think
+import controller_kit as kit            # controller/controller_kit.py: themes, settings that stick (every robot's)
 
 APP_NAME     = "KIDA — Remote Controller"
 HEARTBEAT_S  = 0.25   # the robot stops a remote drive it hasn't heard for 0.8 s
 CAM_PAN_S    = 0.1    # how often the right stick sends a camera pan
 MIN_W, MIN_H = 1100, 720
+FAKE_URL     = "http://127.0.0.1:5003"   # EMULATE: fake_kida00.py
+
+# THEME: render_helpers' colour names and their roles in colour_scheme.xml
+COLOUR_ROLES = {
+    "BG": "background", "GRID": "grid", "PANEL": "panel", "BOT_BG": "bottom_bar", "CAM_BG": "camera_bg",
+    "BORDER": "border", "DIVIDER": "divider", "TRACK": "track", "LED_OFF": "led_off",
+    "PRI": "text", "SEC": "text_sec", "DIM": "text_dim", "ACCENT": "accent",
+    "HOVER_BG": "button_hover_bg", "DANGER_BG": "danger_bg", "GREEN": "green", "BLUE": "blue",
+    "AMBER": "amber", "RED": "red", "TEAL": "teal", "PURPLE": "purple",
+}
+_ORIGINAL = {name: getattr(rh, name) for name in COLOUR_ROLES}   # DEFAULT: exactly her own HUD
+
+
+def apply_theme(name: str, custom=None) -> None:
+    """DEFAULT (her HUD's colours), LIGHT or CUSTOM (controller_settings.json) into render_helpers:
+    its colour globals, and the defaults its functions took from them (hline's border, txt's text...)."""
+    if name == "DEFAULT":
+        new = dict(_ORIGINAL)
+    else:
+        c = kit.theme_colours(name, custom)
+        if name == "LIGHT":   # her extra surfaces, from the light ones kit made
+            c.update(grid=kit.mix(c["background"], c["divider"], 0.5), bottom_bar=c["panel"],
+                     camera_bg=kit.mix(c["panel"], c["border"], 0.5), track=c["divider"], led_off=c["border"])
+        new = {g: tuple(c.get(role, _ORIGINAL[g])) for g, role in COLOUR_ROLES.items()}
+    swap = {getattr(rh, g): new[g] for g in COLOUR_ROLES}
+    for fn in vars(rh).values():
+        if callable(fn) and getattr(fn, "__defaults__", None):
+            fn.__defaults__ = tuple(swap.get(d, d) if isinstance(d, tuple) else d for d in fn.__defaults__)
+    for g, v in new.items():
+        setattr(rh, g, v)
 
 
 def _resolve_robot_url() -> tuple:
+    """(robot URL or None, fullscreen, emulate)."""
     parser = argparse.ArgumentParser(description=APP_NAME)
     parser.add_argument("robot", nargs="?", default=os.environ.get("ROBOT_URL"),
                         help="Robot IP or URL, e.g. 192.168.1.50 or http://192.168.1.50:5003")
     parser.add_argument("--port", type=int, default=5003)
     parser.add_argument("--fullscreen", action="store_true")
+    parser.add_argument("--emulate", action="store_true",
+                        help="start on her pretend self (fake_kida00.py); the default with no robot given")
     parser.add_argument("--ladder", action="store_true",
                     help="join / host the fleet's WiFi (fleet_ladder.py; FLEET_LADDER=1 does the same)")
     args = parser.parse_args()
     from fleet_ladder import FleetLadder   # the fleet's WiFi ladder (fleet TODO, section 2)
     FleetLadder("KIDA00CTL", enabled=args.ladder or None).start()
     if not args.robot:
-        parser.error("robot IP/URL required (positional arg, or ROBOT_URL env var)")
+        return None, args.fullscreen, True
     robot = args.robot if args.robot.startswith("http") else f"http://{args.robot}:{args.port}"
-    return robot, args.fullscreen
+    return robot, args.fullscreen, args.emulate
 
 
 def _mode_of(status: dict) -> Mode:
@@ -84,10 +125,27 @@ def _mode_cmd(mode: Mode) -> str:
 
 
 def run_controller() -> None:
-    base_url, fullscreen = _resolve_robot_url()
-    print(f"{APP_NAME} - connecting to {base_url}")
-    remote = RemoteClient(base_url)
-    brain  = DriveMind(remote)
+    real_url, fullscreen, emulate = _resolve_robot_url()
+    settings = kit.Settings()               # controller/controller_settings.json: THEME (this PC's, not in git)
+    apply_theme(settings.theme, settings.get("custom"))
+    fake = {"robot": None}
+
+    def start_fake() -> None:
+        if fake["robot"] is None:
+            try:
+                import fake_kida00
+                fake["robot"] = fake_kida00.FakeKida()
+                fake["robot"].quiet = True
+            except OSError:              # port 5003 taken: a fake_kida00.py already running? use that
+                print("EMULATE: port 5003 is taken; talking to whatever answers there")
+
+    if emulate:
+        start_fake()
+    base_url = FAKE_URL if emulate else real_url
+    print(f"{APP_NAME} - connecting to {base_url}" + ("  (EMULATE: her pretend self)" if emulate else ""))
+    remote  = RemoteClient(base_url)
+    brain   = DriveMind(remote)
+    pending = kit.Pending()                 # settings sent again until her status says so
 
     pygame.init()
     pygame.display.set_caption(APP_NAME)
@@ -114,7 +172,14 @@ def run_controller() -> None:
     def relayout(w, h):
         lay = hud_layout.compute_layout(w, h)
         bg  = build_background(w, h, lay["TOP_H"], lay["BOT_H"], lay["L_W"], lay["R_W"])
-        cs  = pygame.Surface((lay["CAM_W"], lay["CAM_H"]));  cs.fill(CAM_BG)
+        cs  = pygame.Surface((lay["CAM_W"], lay["CAM_H"]));  cs.fill(rh.CAM_BG)
+        # the PC's own buttons, in the top bar between her logo and the LED dots / CPU chips
+        th, bw = lay["TOP_H"], {"STOP": 84, "EMULATE": 112, "THEME": 150}
+        x, y = w - 420, (th - 30) // 2
+        lay["pc_btns"] = {}
+        for name in ("THEME", "EMULATE", "STOP"):
+            x -= bw[name]
+            lay["pc_btns"][name] = pygame.Rect(x, y, bw[name] - 8, 30)
         return lay, bg, cs
 
     lay, bg_surf, cam_surf = relayout(W, H)
@@ -122,6 +187,39 @@ def run_controller() -> None:
     qr_surf  = pygame.Surface((130, 130));  qr_surf.fill((255, 255, 255))
     have_qr  = False
     host_ip  = urlparse(base_url).hostname or base_url
+    status   = {}
+
+    def set_emulate(on: bool) -> None:
+        nonlocal emulate, host_ip, have_qr, cam_seq
+        if on == emulate or (not on and not real_url):
+            return                        # no robot to go back to: she stays emulated
+        emulate = on
+        if on:
+            start_fake()
+        remote.retarget(FAKE_URL if on else real_url)
+        if not on and fake["robot"] is not None:
+            fake["robot"].stop()
+            fake["robot"] = None
+        host_ip  = urlparse(remote.base_url).hostname or remote.base_url
+        have_qr, cam_seq = False, -1
+        print("EMULATE on: her pretend self" if on else f"EMULATE off: {real_url}")
+
+    def want_mode(m: Mode) -> None:
+        pending.want("mode", m.name, lambda c=_mode_cmd(m): remote.send(c))
+
+    def want(key, value, cmd) -> None:
+        pending.want(key, value, lambda: remote.send(cmd))
+
+    def shown(key, default):
+        """A setting as just picked (before she confirms it), else as her status says."""
+        v = pending.value(key)
+        return status.get(key, default) if v is None else v
+
+    def stop_anywhere() -> None:
+        """STOP: motors off in any mode, back to USER (as the pad's B)."""
+        if shown("mode", "USER") != "USER":
+            want_mode(Mode.USER)
+        remote.send("stop")
 
     frame     = 0
     hold_dir  = None     # on-screen d-pad held with the mouse
@@ -140,15 +238,17 @@ def run_controller() -> None:
         mouse  = pygame.mouse.get_pos()
         status = remote.status
         st     = remote.stats
+        pending.check(status)
 
-        mode        = _mode_of(status)
+        mode        = _mode_of({"mode": shown("mode", "USER")})
         direction   = status.get("direction", "STOPPED")
-        speed       = status.get("speed", hud_layout.SPEED_LEVELS[0])
-        speed_idx   = status.get("speed_idx", 0)
-        ctrl_scheme = status.get("ctrl_scheme", 1)
-        arc_turn    = status.get("arc_turn", True)
-        video_rec   = status.get("video_rec", False)
-        music_on    = status.get("music_playing", False)
+        speed_idx   = shown("speed_idx", 0)
+        speed       = hud_layout.SPEED_LEVELS[speed_idx] if pending.value("speed_idx") is not None \
+            else status.get("speed", hud_layout.SPEED_LEVELS[0])
+        ctrl_scheme = shown("ctrl_scheme", 1)
+        arc_turn    = shown("arc_turn", True)
+        video_rec   = shown("video_rec", False)
+        music_on    = shown("music_playing", False)
         face_scan   = status.get("face_scan", True)
         faces       = status.get("faces", [])
         led_color   = tuple(status.get("led", (0, 0, 0)))
@@ -228,9 +328,16 @@ def run_controller() -> None:
                           status.get("frame", frame), W, H, BOT_H, fmono_xs,
                           online=remote.connected, pad=gamepad.name)
 
+        for name, r in lay["pc_btns"].items():   # the PC's own: EMULATE / THEME / STOP
+            label = f"THEME {settings.theme}" if name == "THEME" else name
+            btn(screen, flabel_s, label, r, mouse, active=(name == "EMULATE" and emulate), danger=(name == "STOP"))
+
         if not remote.connected:
             txt(screen, fmono_md, "[ NO CONNECTION TO ROBOT ]",
-                (W // 2, TOP_H + lay["CAM_H"] // 2 + 60), RED, anchor="center")
+                (W // 2, TOP_H + lay["CAM_H"] // 2 + 60), rh.RED, anchor="center")
+        elif emulate:
+            txt(screen, fmono_xs, kit.fit("EMULATE: her pretend self on this PC (fake_kida00.py)", fmono_xs, lay["CAM_W"] - 16),
+                (lay["CAM_X"] + 8, lay["CAM_Y"] + 6), rh.AMBER)
 
         brain.update(status)
         if brain.mind.on or mode == Mode.MIND:   # her thinking, over the bottom of the camera
@@ -264,6 +371,8 @@ def run_controller() -> None:
                     show_keys = not show_keys and k != pygame.K_ESCAPE
                 elif k == pygame.K_ESCAPE:
                     running = False
+                elif k == pygame.K_BACKSPACE:
+                    stop_anywhere()
                 elif k == pygame.K_LEFT:
                     remote.send("cam_left")
                 elif k == pygame.K_RIGHT:
@@ -271,60 +380,79 @@ def run_controller() -> None:
                 elif k == pygame.K_UP:
                     remote.send("cam_centre")
                 elif k == pygame.K_TAB:
-                    remote.send(_mode_cmd(Mode((int(mode) + 1) % 3)))
+                    want_mode(Mode((int(mode) + 1) % 3) if int(mode) < 3 else Mode.USER)
                 elif k == pygame.K_m:
-                    remote.send("play_music")
+                    want("music_playing", True, "play_music")
                 elif k == pygame.K_SPACE:
-                    remote.send("stop_music")
+                    want("music_playing", False, "stop_music")
                 elif k == pygame.K_u:
-                    remote.send(_mode_cmd(Mode.USER))
+                    want_mode(Mode.USER)
                 elif k == pygame.K_o:
-                    remote.send(_mode_cmd(Mode.AUTONOMOUS))
+                    want_mode(Mode.AUTONOMOUS)
                 elif k == pygame.K_l:
-                    remote.send(_mode_cmd(Mode.LINE))
+                    want_mode(Mode.LINE)
                 elif k == pygame.K_9:
                     if brain.capable and status.get("mindHost"):
-                        remote.send(_mode_cmd(Mode.MIND))
+                        want_mode(Mode.MIND)
                     else:
                         print(f"MIND: not available: {brain.why or 'she has not heard this PC check in yet'}")
                 elif k == pygame.K_x and mode in (Mode.USER, Mode.AUTONOMOUS):
-                    remote.send("speed")   # autonomous cruises at the selected speed too
+                    i = (speed_idx + 1) % len(hud_layout.SPEED_LEVELS)   # autonomous cruises at it too
+                    want("speed_idx", i, f"speed_{i + 1}")
                 elif mode == Mode.USER:
-                    if   k == pygame.K_1: remote.send("scheme_1")
-                    elif k == pygame.K_2: remote.send("scheme_2")
-                    elif k == pygame.K_t: remote.send("arc_toggle")
+                    if   k == pygame.K_1: want("ctrl_scheme", 1, "scheme_1")
+                    elif k == pygame.K_2: want("ctrl_scheme", 2, "scheme_2")
+                    elif k == pygame.K_t: want("arc_turn", not arc_turn, "arc_off" if arc_turn else "arc_on")
                     elif k == pygame.K_c: remote.send("photo")
-                    elif k == pygame.K_v: remote.send("video_toggle")
+                    elif k == pygame.K_v: want("video_rec", not video_rec, "video_stop" if video_rec else "video_start")
                     elif k == pygame.K_f: remote.send("face_save")   # not S — that drives
 
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 pos = event.pos
+                for name, r in lay["pc_btns"].items():
+                    if r.collidepoint(pos):
+                        if name == "STOP":
+                            stop_anywhere()
+                        elif name == "EMULATE":
+                            set_emulate(not emulate)
+                        elif name == "THEME":
+                            settings.next_theme()
+                            apply_theme(settings.theme, settings.get("custom"))
+                            lay, bg_surf, cam_surf = relayout(lay["W"], lay["H"])
+                            cam_seq = -1
                 for i, tr in enumerate(lay["tabs"]):
                     if tr.collidepoint(pos):
-                        remote.send(_mode_cmd(Mode(i)))
+                        want_mode(Mode(i))
+
+                # the D-pad and the joystick take over in any mode (back to USER, you drive)
+                for cmd, r in lay["dpad"].items():
+                    if r.collidepoint(pos):
+                        hold_dir = None if cmd == "stop" else cmd
+                        if cmd == "stop":
+                            stop_anywhere()
+                jc = lay["joy"]
+                if jc and (pos[0] - jc[0]) ** 2 + (pos[1] - jc[1]) ** 2 <= jc[2] ** 2:
+                    joy = joystick_value(jc, pos)      # dragged until the button comes up
 
                 if mode == Mode.USER:
-                    for cmd, r in lay["dpad"].items():
-                        if r.collidepoint(pos):
-                            hold_dir = None if cmd == "stop" else cmd
-                            if cmd == "stop":
-                                remote.send("stop")
                     for i, r in enumerate(lay["sch_btns"]):
                         if r.collidepoint(pos):
-                            remote.send(f"scheme_{i + 1}" if i < 2 else "arc_toggle")
-                    jc = lay["joy"]
-                    if jc and (pos[0] - jc[0]) ** 2 + (pos[1] - jc[1]) ** 2 <= jc[2] ** 2:
-                        joy = joystick_value(jc, pos)      # dragged until the button comes up
+                            if i < 2:
+                                want("ctrl_scheme", i + 1, f"scheme_{i + 1}")
+                            else:
+                                want("arc_turn", not arc_turn, "arc_off" if arc_turn else "arc_on")
                     if lay["btn_photo"].collidepoint(pos): remote.send("photo")
-                    if lay["btn_video"].collidepoint(pos): remote.send("video_toggle")
+                    if lay["btn_video"].collidepoint(pos):
+                        want("video_rec", not video_rec, "video_stop" if video_rec else "video_start")
 
                 if mode in (Mode.USER, Mode.AUTONOMOUS):
                     for i, r in enumerate(lay["spd_dots"]):
-                        if r.collidepoint(pos): remote.send(f"speed_{i + 1}")
+                        if r.collidepoint(pos): want("speed_idx", i, f"speed_{i + 1}")
 
                 if lay["btn_face_snap"].collidepoint(pos): remote.send("face_save")
                 if lay["btn_face_scan"].collidepoint(pos): remote.send("face_scan_toggle")
-                if lay["btn_play"].collidepoint(pos):      remote.send("music_toggle")
+                if lay["btn_play"].collidepoint(pos):
+                    want("music_playing", not music_on, "stop_music" if music_on else "play_music")
                 if lay["btn_skip"].collidepoint(pos) and music_on:
                     remote.send("skip_music")
 
@@ -346,34 +474,39 @@ def run_controller() -> None:
                 last_pan = time.monotonic()
 
         # ── Drive — keys / gamepad / joystick / d-pad become a resent intent ──
-        # Priority matches the robot: keyboard, gamepad, on-screen joystick, d-pad
+        # Priority matches the robot: keyboard, gamepad, on-screen joystick, d-pad.
+        # Read in every mode: a drive input while she drives herself takes over (back to USER).
         intent = None
-        if mode == Mode.USER:
-            keys = pygame.key.get_pressed() if pygame.key.get_focused() else None
-            key_wheels = keys and keys_to_wheels(keys[pygame.K_w], keys[pygame.K_s],
-                                                 keys[pygame.K_a], keys[pygame.K_d], arc_turn)
-            pad_wheels = None
-            if pad:
-                if ctrl_scheme == 2:
-                    pad_wheels = tank_sticks_to_wheels(pad.ly, pad.ry)
-                else:
-                    pad_wheels = stick_to_wheels(pad.lx, pad.ly)
-                    if pad_wheels:
-                        pad_knob = (pad.lx, pad.ly)
-                pad_wheels = pad_wheels or keys_to_wheels(pad.up, pad.down, pad.left, pad.right, arc_turn)
+        keys = pygame.key.get_pressed() if pygame.key.get_focused() else None
+        key_wheels = keys and keys_to_wheels(keys[pygame.K_w], keys[pygame.K_s],
+                                             keys[pygame.K_a], keys[pygame.K_d], arc_turn)
+        pad_wheels = None
+        if pad:
+            if ctrl_scheme == 2:
+                pad_wheels = tank_sticks_to_wheels(pad.ly, pad.ry)
+            else:
+                pad_wheels = stick_to_wheels(pad.lx, pad.ly)
+                if pad_wheels:
+                    pad_knob = (pad.lx, pad.ly)
+            pad_wheels = pad_wheels or keys_to_wheels(pad.up, pad.down, pad.left, pad.right, arc_turn)
 
-            if ctrl_scheme == 1 and key_wheels:
-                intent = wheels_to_command(*key_wheels)
-            elif keys and ctrl_scheme == 2 and any(keys[k] for k in (pygame.K_q, pygame.K_a, pygame.K_w, pygame.K_s)):
-                l = 1 if keys[pygame.K_q] else -1 if keys[pygame.K_a] else 0
-                r = 1 if keys[pygame.K_w] else -1 if keys[pygame.K_s] else 0
-                intent = f"tank:{l}:{r}"
-            elif pad_wheels:
-                intent = wheels_to_command(*pad_wheels)
-            elif joy is not None:
-                intent = wheels_to_command(*(stick_to_wheels(*joy) or (0.0, 0.0)))
-            elif hold_dir:
-                intent = hold_dir
+        if ctrl_scheme == 1 and key_wheels:
+            intent = wheels_to_command(*key_wheels)
+        elif keys and ctrl_scheme == 2 and any(keys[k] for k in (pygame.K_q, pygame.K_a, pygame.K_w, pygame.K_s)):
+            l = 1 if keys[pygame.K_q] else -1 if keys[pygame.K_a] else 0
+            r = 1 if keys[pygame.K_w] else -1 if keys[pygame.K_s] else 0
+            intent = f"tank:{l}:{r}"
+        elif pad_wheels:
+            intent = wheels_to_command(*pad_wheels)
+        elif joy is not None:
+            intent = wheels_to_command(*(stick_to_wheels(*joy) or (0.0, 0.0)))
+        elif hold_dir:
+            intent = hold_dir
+
+        if intent and mode != Mode.USER:
+            print(f"Driving takes over: {mode.name} -> USER")
+            want_mode(Mode.USER)
+            mode = Mode.USER
 
         now = time.monotonic()
         if intent != last_sent:
@@ -391,6 +524,8 @@ def run_controller() -> None:
         brain.mind.stop()
     remote.send_now("stop")
     remote.stop()
+    if fake["robot"] is not None:
+        fake["robot"].stop()
     pygame.quit()
     print("Controller closed")
 

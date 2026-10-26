@@ -1,7 +1,8 @@
 #!/bin/bash
 # run.sh — launch the KIDA remote controller (creates its own venv on first run)
 #
-# Usage: ./run.sh <robot-ip-or-url> [--port 5003] [--fullscreen]
+# Usage: ./run.sh <robot-ip-or-url> [--port 5003] [--fullscreen] [--emulate]
+#        ./run.sh          no robot: EMULATE, her pretend self on this PC
 #    or: ROBOT_URL=http://192.168.1.50:5003 ./run.sh
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

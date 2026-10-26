@@ -47,6 +47,11 @@ KEYBOARD = [
         ("H or F1", "this keys window"),
         ("ESC", "quit"),
     ]),
+    ("PC controller only (controller/main.py)", [
+        ("Backspace", "STOP: motors off in any mode, back to USER (as the STOP button and the D-pad's middle)"),
+        ("Drive keys, pad, D-pad", "in any mode: driving takes over (back to USER, you drive)"),
+        ("STOP / EMULATE / THEME", "the top bar: stop in any mode / her pretend self on this PC / DEFAULT, LIGHT, CUSTOM colours"),
+    ]),
 ]
 
 GAMEPAD = [
