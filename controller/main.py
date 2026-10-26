@@ -236,9 +236,10 @@ def run_controller() -> None:
     running = True
     while running:
         mouse  = pygame.mouse.get_pos()
+        at     = remote.status_at   # first: the status read after it is at least that new
         status = remote.status
         st     = remote.stats
-        pending.check(status)
+        pending.check(status, at)
 
         mode        = _mode_of({"mode": shown("mode", "USER")})
         direction   = status.get("direction", "STOPPED")

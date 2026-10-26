@@ -39,6 +39,7 @@ class RemoteClient:
         self.jpeg_seq  = 0
         self.qr_png    = None
         self.connected = False
+        self.status_at = 0.0     # time.monotonic() when the status above was asked for
         self.mind_host = False   # drive_mind.py: this PC can drive her mind, so check in (ctl=1)
         self._running  = True
         self._session  = requests.Session()   # status polling
@@ -68,7 +69,9 @@ class RemoteClient:
         while self._running:
             try:
                 url = f"{self.base_url}/status" + ("?ctl=1" if self.mind_host else "")
+                asked = time.monotonic()
                 self.status    = self._session.get(url, timeout=1.5).json()
+                self.status_at = asked   # for settings that stick: an older status can't confirm one
                 self.connected = True
             except Exception:
                 self.connected = False
