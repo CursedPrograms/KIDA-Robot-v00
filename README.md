@@ -1,37 +1,71 @@
-<p align="center"><img src="images/avatar_round.png" width="160" alt="KIDA"></p>
+<p align="center"><img src="images/avatar_round.png" width="160" alt="KIDA-00"></p>
 
-[![Twitter: @NorowaretaGemu](https://img.shields.io/badge/X-@NorowaretaGemu-blue.svg?style=flat)](https://x.com/NorowaretaGemu)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-  
- <div align="center">
+<h1 align="center">KIDA-00</h1>
+<h3 align="center">Kinetic Interactive Drive Automaton</h3>
+<p align="center"><i>A DREAM Robotics Agent</i></p>
+
+<div align="center">
+
+[![Twitter: @NorowaretaGemu](https://img.shields.io/badge/X-@NorowaretaGemu-blue.svg?style=flat)](https://x.com/NorowaretaGemu) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+</div>
+
+<div align="center">
   <a href="https://ko-fi.com/cursedentertainment">
-    <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="ko-fi" style="width: 20%;"/>
+    <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="ko-fi" width="180"/>
   </a>
 </div>
+
 <div align="center">
   <img alt="Python" src="https://img.shields.io/badge/python%20-%23323330.svg?&style=for-the-badge&logo=python&logoColor=white"/>
-</div>
-
-<div align="center">
   <img alt="Raspberry Pi" src="https://img.shields.io/badge/-Raspberry_Pi-323330?style=for-the-badge&logo=raspberry-pi&logoColor=white"/>
-
-</div>
-
-<div align="center">
   <img alt="Git" src="https://img.shields.io/badge/git%20-%23323330.svg?&style=for-the-badge&logo=git&logoColor=white"/>
   <img alt="Shell" src="https://img.shields.io/badge/Shell-%23323330.svg?&style=for-the-badge&logo=gnu-bash&logoColor=white"/>
 </div>
 
 ---
 
-# KIDA (v00): Kinetic Interactive Drive Automaton
-
 <div align="center">
   <img src="images/kida_avatar.jpg" alt="KIDA avatar: a human representation of the robot" width="320"/>
   <p><i>KIDA</i></p>
 </div>
 
-## 📖 Overview
+---
+
+<div align="center">
+  <img src="images/screenshots/controller.gif" alt="KIDA-00's Python controller, driving a pretend KIDA-00" width="420"/>
+</div>
+
+**Windows controller:** [`builds/KIDA-00-Controller.exe`](builds/KIDA-00-Controller.exe) shows KIDA-00's own web page in a window, so it always matches the page. Source: `scripts/web_controller`.
+
+---
+
+## Related Projects
+
+
+<table>
+  <tr>
+    <td align="center"><a href="https://github.com/CursedPrograms/ARIA-Robot-v00"><img src="https://raw.githubusercontent.com/CursedPrograms/ARIA-Robot-v00/main/images/avatar_round.png" width="72" alt="ARIA"><br>ARIA</a></td>
+    <td align="center"><a href="https://github.com/CursedPrograms/KIDA-Robot-v01"><img src="https://raw.githubusercontent.com/CursedPrograms/KIDA-Robot-v01/main/images/avatar_round.png" width="72" alt="KIDA-01"><br>KIDA-01</a></td>
+    <td align="center"><a href="https://github.com/CursedPrograms/WHIP-Robot-v00"><img src="https://raw.githubusercontent.com/CursedPrograms/WHIP-Robot-v00/main/images/avatar_round.png" width="72" alt="WHIP"><br>WHIP</a></td>
+    <td align="center"><a href="https://github.com/CursedPrograms/NORA-Robot-v00"><img src="https://raw.githubusercontent.com/CursedPrograms/NORA-Robot-v00/main/images/avatar_round.png" width="72" alt="NORA"><br>NORA</a></td>
+    <td align="center"><a href="https://github.com/CursedPrograms/MILA-Robot-v00"><img src="https://raw.githubusercontent.com/CursedPrograms/MILA-Robot-v00/main/images/avatar_round.png" width="72" alt="MILA"><br>MILA</a></td>
+    <td align="center"><a href="https://github.com/CursedPrograms/NIKA-Robot-v00"><img src="https://raw.githubusercontent.com/CursedPrograms/NIKA-Robot-v00/main/images/avatar_round.png" width="72" alt="NIKA"><br>NIKA</a></td>
+    <td align="center"><a href="https://github.com/CursedPrograms/IDA-Robot-v00"><img src="https://raw.githubusercontent.com/CursedPrograms/IDA-Robot-v00/main/images/avatar_round.png" width="72" alt="IDA"><br>IDA</a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/CursedPrograms/ARM-Robot-v01"><img src="https://raw.githubusercontent.com/CursedPrograms/ARM-Robot-v01/main/images/avatar_round.png" width="72" alt="ARM"><br>ARM</a></td>
+    <td align="center"><a href="https://github.com/CursedPrograms/DREAM"><img src="https://raw.githubusercontent.com/CursedPrograms/DREAM/main/images/avatar_round.png" width="72" alt="DREAM"><br>DREAM</a></td>
+    <td align="center"><a href="https://github.com/CursedPrograms/RIFT"><img src="https://raw.githubusercontent.com/CursedPrograms/RIFT/main/images/avatar_round.png" width="72" alt="RIFT"><br>RIFT</a></td>
+    <td align="center"><a href="https://github.com/CursedPrograms/RITA"><img src="https://raw.githubusercontent.com/CursedPrograms/RITA/main/images/avatar_round.png" width="72" alt="RITA"><br>RITA</a></td>
+    <td align="center"><a href="https://github.com/CursedPrograms/NINA"><img src="https://raw.githubusercontent.com/CursedPrograms/NINA/main/images/avatar_round.png" width="72" alt="NINA"><br>NINA</a></td>
+    <td align="center"><a href="https://github.com/CursedPrograms/TINA"><img src="https://raw.githubusercontent.com/CursedPrograms/TINA/main/images/avatar_round.png" width="72" alt="TINA"><br>TINA</a></td>
+  </tr>
+</table>
+
+---
+
+## Overview
 
 <details>
 <summary><b>Overview</b></summary>
@@ -50,14 +84,124 @@ Core Features
 
 ---
 
-## 🤖 HELLO, DANCE and fleet talk
+## Prerequisites
 
-- **Android app (`Android App/`, package `com.synthwomb`): FIND gets her address from the fleet list, or type it in. Hold the stick to drive, let go to stop, and her modes, HELLO, DANCE, photo, music and the wheel lock are buttons. Build it with `gradlew assembleDebug`.**
-- **HELLO and DANCE:** on the spot, in USER mode: she says it, her camera shakes, and DANCE turns her left and right. A stop or the wheel lock ends it. **J** and **N** on the PC controller, buttons on her dashboard, `hello` and `dance` in `POST /do`.
-- **Brainfuck out loud:** `/chirp?u=<n>` plays the fleet's phrases on her speaker (`scripts/chirp.py`), so RIFT's conversations include her.
-- `/status` carries `rev`, her settings in one number.
+<details>
+<summary><b>Prerequisites</b></summary>
 
-## 🎮 Controls
+### Software
+- [Raspberry Pi OS](https://www.raspberrypi.com/software/operating-systems/)
+
+## Hardware
+
+### Compute
+| **Component** | **Details** |
+|-----------|---------|
+| Main Board | Raspberry Pi 3B |
+| GPIO Hat | Freenove Tank Robot HAT v2 |
+
+### Chassis & Motion
+| **Component** | **Details** |
+|-----------|---------|
+| Chassis | Robot Tank Chassis |
+| Motors | 2× 5v DC Motors |
+
+### User Controllers
+| **Component** | **Details** |
+|-----------|---------|
+| Interface | PC, Android, iPhone |
+| Controller | Wireless Keyboard |
+
+### Cameras
+| **Component** | **Details** |
+|-----------|---------|
+| Camera 0 | Raspberry Pi Camera |
+
+### Sensors
+| **Component** | **Details** |
+|-----------|---------|
+| Ultrasonic Sensors | HC-SR04|
+| Line Follower | 3-Channel Line Tracking Sensor |
+
+### Power System
+| **Component** | **Details** |
+|-----------|---------|
+| Battery | 2s 18650|
+
+</details>
+
+---
+
+## Pinouts
+
+> [!IMPORTANT]
+> This section describes the GPIO pin assignments for the KIDA robot.
+
+KIDA uses the V2 robot Hat from the [Freenove Tank Robot](https://github.com/Freenove/Freenove_Tank_Robot_Kit_for_Raspberry_Pi): 
+
+<details>
+<summary><b>Freenove Tank Robot HAT v2 GPIO Configuration</b></summary>
+
+## Ultrasonic Sensor (HC-SR04)
+
+| Signal       | GPIO Pin |
+|-------------|----------|
+| TRIGGER_PIN | 27       |
+| ECHO_PIN    | 22       |
+
+---
+
+## Servos
+
+| Signal       | GPIO Pin |
+|-------------|----------|
+| Servo0 | 12       |
+| Servo1    | 13       |
+| Servo1    | 19       |
+
+---
+
+## LEDpixel
+
+| Signal       | GPIO Pin |
+|-------------|----------|
+| LEDpixel | 10      |
+
+---
+
+## Infrared Sensors
+
+| Sensor | GPIO Pin |
+|--------|----------|
+| IR01   | 16  (IR01) |
+| IR02   | 26  (IR02) |
+| IR03   | 21  (IR03) |
+
+---
+
+## Motor Pins
+
+**Left Motor:**
+
+| Signal | GPIO Pin |
+|--------|----------|
+| IN1    | 23 (M1+) |
+| IN2    | 24 (M1-) |
+
+**Right Motor:**
+
+| Signal | GPIO Pin |
+|--------|----------|
+| IN1    | 6  (M2+) |
+| IN2    | 5  (M2-) |
+
+</details>
+
+*Note:* These pins correspond to the constructor defaults:
+
+---
+
+## Controls
 
 The same keys on her own screen (scripts/ui.py), the PC controller (controller/main.py) and the web dashboard. **H** or **F1** opens a keys window in each of them (on the dashboard also the **KEYS** button). She has no IR remote. One list feeds all of them and this section: `scripts/keymap.py` (regenerate with `python scripts/keymap.py`).
 
@@ -151,34 +295,6 @@ The same keys on her own screen (scripts/ui.py), the PC controller (controller/m
 
 ---
 
-<div align="center">
-  <img src="images/screenshots/controller.gif" alt="KIDA-00's Python controller, driving a pretend KIDA-00" width="420"/>
-</div>
-
-**Windows controller:** [`builds/KIDA-00-Controller.exe`](builds/KIDA-00-Controller.exe) shows KIDA-00's own web page in a window, so it always matches the page. Source: `scripts/web_controller`.
-
-## Related Projects
-
-<table>
-  <tr>
-    <td align="center"><a href="https://github.com/CursedPrograms/ARIA-Robot-v00"><img src="https://raw.githubusercontent.com/CursedPrograms/ARIA-Robot-v00/main/images/avatar_round.png" width="72" alt="ARIA"><br>ARIA</a></td>
-    <td align="center"><a href="https://github.com/CursedPrograms/KIDA-Robot-v01"><img src="https://raw.githubusercontent.com/CursedPrograms/KIDA-Robot-v01/main/images/avatar_round.png" width="72" alt="KIDA-01"><br>KIDA-01</a></td>
-    <td align="center"><a href="https://github.com/CursedPrograms/WHIP-Robot-v00"><img src="https://raw.githubusercontent.com/CursedPrograms/WHIP-Robot-v00/main/images/avatar_round.png" width="72" alt="WHIP"><br>WHIP</a></td>
-    <td align="center"><a href="https://github.com/CursedPrograms/NORA-Robot-v00"><img src="https://raw.githubusercontent.com/CursedPrograms/NORA-Robot-v00/main/images/avatar_round.png" width="72" alt="NORA"><br>NORA</a></td>
-    <td align="center"><a href="https://github.com/CursedPrograms/MILA-Robot-v00"><img src="https://raw.githubusercontent.com/CursedPrograms/MILA-Robot-v00/main/images/avatar_round.png" width="72" alt="MILA"><br>MILA</a></td>
-    <td align="center"><a href="https://github.com/CursedPrograms/NIKA-Robot-v00"><img src="https://raw.githubusercontent.com/CursedPrograms/NIKA-Robot-v00/main/images/avatar_round.png" width="72" alt="NIKA"><br>NIKA</a></td>
-    <td align="center"><a href="https://github.com/CursedPrograms/IDA-Robot-v00"><img src="https://raw.githubusercontent.com/CursedPrograms/IDA-Robot-v00/main/images/avatar_round.png" width="72" alt="IDA"><br>IDA</a></td>
-  </tr>
-  <tr>
-    <td align="center"><a href="https://github.com/CursedPrograms/ARM-Robot-v01"><img src="https://raw.githubusercontent.com/CursedPrograms/ARM-Robot-v01/main/images/avatar_round.png" width="72" alt="ARM"><br>ARM</a></td>
-    <td align="center"><a href="https://github.com/CursedPrograms/DREAM"><img src="https://raw.githubusercontent.com/CursedPrograms/DREAM/main/images/avatar_round.png" width="72" alt="DREAM"><br>DREAM</a></td>
-    <td align="center"><a href="https://github.com/CursedPrograms/RIFT"><img src="https://raw.githubusercontent.com/CursedPrograms/RIFT/main/images/avatar_round.png" width="72" alt="RIFT"><br>RIFT</a></td>
-    <td align="center"><a href="https://github.com/CursedPrograms/RITA"><img src="https://raw.githubusercontent.com/CursedPrograms/RITA/main/images/avatar_round.png" width="72" alt="RITA"><br>RITA</a></td>
-    <td align="center"><a href="https://github.com/CursedPrograms/NINA"><img src="https://raw.githubusercontent.com/CursedPrograms/NINA/main/images/avatar_round.png" width="72" alt="NINA"><br>NINA</a></td>
-    <td align="center"><a href="https://github.com/CursedPrograms/TINA"><img src="https://raw.githubusercontent.com/CursedPrograms/TINA/main/images/avatar_round.png" width="72" alt="TINA"><br>TINA</a></td>
-  </tr>
-</table>
-
 ---
 
 <div align="center">
@@ -190,127 +306,10 @@ The same keys on her own screen (scripts/ui.py), the PC controller (controller/m
   <img src="images/kida-robot-front.png" alt="KIDA Robot front view" width="400"/>
   <img src="images/kida-robot-side.png" alt="KIDA Robot side view" width="400"/>
 </div>
-<br>
-
-## Prerequisites
-<details>
-<summary><b>Prerequisites</b></summary>
-
-### Software
-- [Raspberry Pi OS](https://www.raspberrypi.com/software/operating-systems/)
-
-## Hardware
-
-### Compute
-| **Component** | **Details** |
-|-----------|---------|
-| Main Board | Raspberry Pi 3B |
-| GPIO Hat | Freenove Tank Robot HAT v2 |
-
-### Chassis & Motion
-| **Component** | **Details** |
-|-----------|---------|
-| Chassis | Robot Tank Chassis |
-| Motors | 2× 5v DC Motors |
-
-### User Controllers
-| **Component** | **Details** |
-|-----------|---------|
-| Interface | PC, Android, iPhone |
-| Controller | Wireless Keyboard |
-
-### Cameras
-| **Component** | **Details** |
-|-----------|---------|
-| Camera 0 | Raspberry Pi Camera |
-
-### Sensors
-| **Component** | **Details** |
-|-----------|---------|
-| Ultrasonic Sensors | HC-SR04|
-| Line Follower | 3-Channel Line Tracking Sensor |
-
-### Power System
-| **Component** | **Details** |
-|-----------|---------|
-| Battery | 2s 18650|
-
-</details>
 
 ---
 
-# Schematics
-## ⚡ Technical Pinouts
-
-> [!IMPORTANT]
-> This section describes the GPIO pin assignments for the KIDA robot.
-
-
-KIDA uses the V2 robot Hat from the [Freenove Tank Robot](https://github.com/Freenove/Freenove_Tank_Robot_Kit_for_Raspberry_Pi): 
-
-<details>
-<summary><b>Freenove Tank Robot HAT v2 GPIO Configuration</b></summary>
-
-## Ultrasonic Sensor (HC-SR04)
-
-| Signal       | GPIO Pin |
-|-------------|----------|
-| TRIGGER_PIN | 27       |
-| ECHO_PIN    | 22       |
-
----
-
-## Servos
-
-| Signal       | GPIO Pin |
-|-------------|----------|
-| Servo0 | 12       |
-| Servo1    | 13       |
-| Servo1    | 19       |
-
----
-
-## LEDpixel
-
-| Signal       | GPIO Pin |
-|-------------|----------|
-| LEDpixel | 10      |
-
----
-
-## Infrared Sensors
-
-| Sensor | GPIO Pin |
-|--------|----------|
-| IR01   | 16  (IR01) |
-| IR02   | 26  (IR02) |
-| IR03   | 21  (IR03) |
-
----
-
-## Motor Pins
-
-**Left Motor:**
-
-| Signal | GPIO Pin |
-|--------|----------|
-| IN1    | 23 (M1+) |
-| IN2    | 24 (M1-) |
-
-**Right Motor:**
-
-| Signal | GPIO Pin |
-|--------|----------|
-| IN1    | 6  (M2+) |
-| IN2    | 5  (M2-) |
-
-</details>
-
-*Note:* These pins correspond to the constructor defaults:
-
----
-
-## 🌐 Connectivity & Controls
+## Controls
 
 <details>
 <summary><b>Connectivity & Controls</b></summary>
@@ -338,7 +337,6 @@ To connect via [RIFT](https://github.com/CursedPrograms/RIFT), ensure KIDA-00 is
 * `<KIDA's IP>:5003` (`scripts/server.py`)
 - Opening this address in any web browser on the same network, will also launch the **HTML Remote Controller** for manual overrides.
 
-
 </details>
 
 ---
@@ -346,11 +344,10 @@ To connect via [RIFT](https://github.com/CursedPrograms/RIFT), ensure KIDA-00 is
 <div align="center">
   <img src="images/screenshots/remote-controller.png" alt="KIDA Robot" width="600"/>
 </div>
-<br>
 
 ---
 
-## Setup:
+## Setup
 
 ### Environment Setup
 
@@ -368,7 +365,7 @@ pip install -r requirements.txt
 
 ---
 
-## How to run:
+## How to run
 
 <details>
 <summary><b>How to run:</b></summary>
@@ -417,7 +414,16 @@ chmod +x make_executables.sh
 
 ---
 
-## 🧠 MIND mode: an LLM drives her
+## HELLO, DANCE and fleet talk
+
+- **Android app (`Android App/`, package `com.synthwomb`): FIND gets her address from the fleet list, or type it in. Hold the stick to drive, let go to stop, and her modes, HELLO, DANCE, photo, music and the wheel lock are buttons. Build it with `gradlew assembleDebug`.**
+- **HELLO and DANCE:** on the spot, in USER mode: she says it, her camera shakes, and DANCE turns her left and right. A stop or the wheel lock ends it. **J** and **N** on the PC controller, buttons on her dashboard, `hello` and `dance` in `POST /do`.
+- **Brainfuck out loud:** `/chirp?u=<n>` plays the fleet's phrases on her speaker (`scripts/chirp.py`), so RIFT's conversations include her.
+- `/status` carries `rev`, her settings in one number.
+
+---
+
+## MIND mode: an LLM drives her
 
 Her PC controller's LLM drives her, stop-look-think-move: she stands, looks, thinks (you can read her thinking on the controller), says something in her own voice from her own speaker, and makes one short move. The mind runs on the PC (`controller/drive_mind.py`, the fleet's shared `scripts/mind.py`); her Pi only does what it's asked.
 
@@ -431,7 +437,7 @@ Her side of it is `scripts/mind_drive.py`: `/unlock?pw=&ctl=1`, `/status?ctl=1`,
 
 ---
 
-## 📡 Who's nearby (ESP-NOW + Bluetooth LE)
+## Who's nearby (ESP-NOW + Bluetooth LE)
 
 Every robot sends a small **"I'm here"** beacon twice a second and listens for the others'. From the **signal strength** it knows roughly how close each one is, and from how that changes over time whether it's **coming closer, steady or leaving**:
 
@@ -473,21 +479,17 @@ A Pi can't speak ESP-NOW, so KIDA-00 uses the Pi's own **Bluetooth LE**: she bea
 
 ---
 
-<br>
+<div align="center">&copy; Cursed Entertainment 2026</div>
+
 <div align="center">
-© Cursed Entertainment 2026
+  <a href="https://cursed-entertainment.itch.io/">
+    <img src="https://github.com/CursedPrograms/cursedentertainment/raw/main/images/logos/logo-wide-grey.png" alt="Cursed Entertainment" width="250"/>
+  </a>
 </div>
-<br>
+
 <div align="center">
-<a href="https://cursed-entertainment.itch.io/" target="_blank">
-    <img src="https://github.com/CursedPrograms/cursedentertainment/raw/main/images/logos/logo-wide-grey.png"
-        alt="CursedEntertainment Logo" style="width:250px;">
-</a>
-</div>
-<br>
-<div align="center">
-  <a href="https://github.com/SynthWomb" target="_blank">
-    <img src="https://github.com/SynthWomb/synth.womb/blob/main/logos/synthwomb07.png" alt="SynthWomb" style="width:200px;"/>
+  <a href="https://github.com/SynthWomb">
+    <img src="https://github.com/SynthWomb/synth.womb/blob/main/logos/synthwomb07.png?raw=true" alt="SynthWomb" width="200"/>
   </a>
 </div>
 
