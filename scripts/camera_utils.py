@@ -12,15 +12,23 @@ from picamera2 import Picamera2
 from colour_scheme import rgb
 
 
+camera_error = ""      # why there's no picture: shown on the HUD, the page and the PC controller
+
+
 def cam_to_surface(cam: Picamera2, w: int, h: int) -> tuple:
     """Capture a frame, rotate/resize, return (pygame.Surface, PIL.Image|None)."""
+    global camera_error
     try:
         raw = cam.capture_array()
         if raw.ndim == 3 and raw.shape[2] == 4:
             raw = raw[:, :, :3]
-        pil = Image.fromarray(raw, "RGB").rotate(180).resize((w, h), Image.NEAREST)
+        pil = Image.fromarray(raw).rotate(180).resize((w, h), Image.NEAREST)
+        camera_error = ""
         return pygame.image.fromstring(pil.tobytes(), pil.size, "RGB"), pil
-    except Exception:
+    except Exception as e:
+        if not camera_error:
+            print(f"Camera: no picture: {e!r}", flush=True)
+        camera_error = "not started" if cam is None else str(e)[:60]
         s = pygame.Surface((w, h))
         s.fill(rgb("camera_bg"))
         return s, None

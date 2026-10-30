@@ -279,7 +279,8 @@ function renderStatus() {
 
   // camera overlays
   $('rec').classList.toggle('on', !!S.video_rec);
-  $('deepface-missing').style.display = scan && !faces.length && S.deepface_ok === false ? 'block' : 'none';
+  setText('deepface-missing', S.camera_error ? 'NO CAMERA: ' + S.camera_error : 'DEEPFACE NOT INSTALLED');
+  $('deepface-missing').style.display = S.camera_error || (scan && !faces.length && S.deepface_ok === false) ? 'block' : 'none';
   renderFaces(scan ? faces : []);
 
   // music

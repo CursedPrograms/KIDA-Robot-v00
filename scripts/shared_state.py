@@ -46,7 +46,7 @@ _robot_state: dict = {
     "direction": "STOPPED", "speed": 0.4, "speed_idx": 0, "ctrl_scheme": 1,
     "mode": "USER", "video_rec": False, "music_playing": False, "track": "",
     "led": [0, 0, 0], "face_count": 0, "faces": [], "face_scan": True,
-    "deepface_ok": False, "frame": 0,
+    "deepface_ok": False, "camera_error": "", "frame": 0,
 }
 _robot_state_lock = threading.Lock()
 

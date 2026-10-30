@@ -290,7 +290,10 @@ def run_controller() -> None:
         render_camera(screen, cam_surf, faces, frame, video_rec, mode,
                       lay["CAM_X"], lay["CAM_Y"], lay["CAM_W"], lay["CAM_H"],
                       hud_layout.CAM_NATIVE_W, hud_layout.CAM_NATIVE_H,
-                      fmono_sm, fmono_xs, status.get("deepface_ok", True), face_scan)
+                      fmono_sm, fmono_xs, status.get("deepface_ok", True) or bool(status.get("camera_error")), face_scan)
+
+        if status.get("camera_error"):   # the Pi says why there's no picture
+            txt(screen, fmono_xs, "NO CAMERA: " + status["camera_error"], (lay["CAM_X"] + 6, lay["CAM_Y"] + 6))
 
         render_info_strip(screen, mode, direction, speed, ctrl_scheme, led_color,
                           len(faces), lay["CAM_X"], lay["CAM_Y"], lay["CAM_H"],

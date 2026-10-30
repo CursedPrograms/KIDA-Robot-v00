@@ -31,6 +31,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 os.environ.setdefault("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1")
 
 import pygame
+import camera_utils
 from picamera2 import Picamera2
 from picamera2.encoders import H264Encoder
 from picamera2.outputs import FfmpegOutput
@@ -830,7 +831,7 @@ def main() -> None:
                     music_playing=ds["music_playing"],
                     track=music.current_track or "",
                     face_scan=ds["face_scan"], face_count=face_count,
-                    faces=[_face_json(f) for f in face_snapshot], deepface_ok=_deepface_ok.is_set(),
+                    faces=[_face_json(f) for f in face_snapshot], deepface_ok=_deepface_ok.is_set(), camera_error=camera_utils.camera_error,
                     frame=frame,
                 )
 
