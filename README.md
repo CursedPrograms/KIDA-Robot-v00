@@ -151,6 +151,10 @@ The same keys on her own screen (scripts/ui.py), the PC controller (controller/m
 
 ---
 
+<div align="center">
+  <img src="images/screenshots/controller.gif" alt="KIDA-00's Python controller, driving a pretend KIDA-00" width="420"/>
+</div>
+
 **Windows controller:** [`builds/KIDA-00-Controller.exe`](builds/KIDA-00-Controller.exe) shows KIDA-00's own web page in a window, so it always matches the page. Source: `scripts/web_controller`.
 
 ## Related Projects
