@@ -71,7 +71,7 @@ DO_DRIVE  = {"forward": "forward", "back": "backward", "left": "left", "right": 
 DO_ACTIONS = ["stop", "lock_wheels", *DO_SIMPLE, *DO_DRIVE]
 MAX_DRIVE_S = 3.0
 FLEET_CAPS = ("wasd,tank,obstacle_avoidance,line_follow,camera,face_detection,music,"
-              f"music:{THIS_PORT}," + ",".join(f"do:{a}" for a in DO_ACTIONS))
+              f"music:{THIS_PORT},talk:{THIS_PORT}," + ",".join(f"do:{a}" for a in DO_ACTIONS))
 
 NINA_PORT     = 5012   # NINA (the fleet's caretaker) runs next to RIFT
 NINA_REPORT_S = 15
@@ -447,6 +447,21 @@ def look_route():
     if jpg is None:
         return jsonify({"ok": False, "error": why}), 409
     return Response(jpg, mimetype="image/jpeg")
+
+
+@app.route("/chirp")
+def chirp_route():
+    """RIFT's fleet conversations: /chirp?u=<n> says that Brainfuck phrase on her speaker."""
+    import chirp
+    u = request.args.get("u", type=int)
+    if u not in chirp.UTTERANCES:
+        return jsonify({"ok": False, "error": f"use /chirp?u=0-{len(chirp.UTTERANCES) - 1}"}), 400
+    try:
+        from voice import voice
+        ok = voice.play_wav(chirp.wav_of(u))
+    except Exception:
+        ok = False
+    return jsonify({"ok": ok, "text": chirp.UTTERANCES[u]["text"]}), 200 if ok else 503
 
 
 @app.route("/speak", methods=["POST"])

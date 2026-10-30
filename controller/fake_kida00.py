@@ -270,6 +270,9 @@ class FakeKida(kit.FakeRobot):
                 return 409, {"ok": False, "error": "she's not in MIND mode"}
             self.cam_pan = {"left": 45.0, "right": -45.0}.get(q.get("at", "centre"), 0.0)
             return 200, self._frame_jpeg(), "image/jpeg"
+        if path == "/chirp":
+            self.log(f"chirps line {q.get('u')}")
+            return 200, {"ok": True}
         if path == "/speak":
             self.log(f"speaks a WAV of {len(q.get('_body', b''))} bytes")
             return 200, {"ok": True}
