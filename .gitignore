@@ -167,3 +167,7 @@ faces/
 # The PC controller: this PC's THEME, the session test's screenshots
 controller/controller_settings.json
 controller/session_test_*.png
+
+# Controllers, built and kept
+!builds/
+!builds/*.exe
