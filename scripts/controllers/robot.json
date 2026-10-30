@@ -1,0 +1,78 @@
+{
+ "name": "KIDA-00",
+ "port": 5003,
+ "host": "",
+ "status": "/status",
+ "connect": [
+  "GET /motorlockOff?pw=1234",
+  "POST /command|{\"command\":\"_mode_user\"}",
+  "POST /command|{\"command\":\"scheme_wasd\"}"
+ ],
+ "stop": "POST /command|{\"command\":\"stop\"}",
+ "keys": {
+  "w": "POST /command|{\"command\":\"drive:0.60:0.60\"}",
+  "s": "POST /command|{\"command\":\"drive:-0.60:-0.60\"}",
+  "a": "POST /command|{\"command\":\"drive:-0.60:0.60\"}",
+  "d": "POST /command|{\"command\":\"drive:0.60:-0.60\"}"
+ },
+ "buttons": [
+  [
+   "USER",
+   "POST /command|{\"command\":\"_mode_user\"}"
+  ],
+  [
+   "AUTO",
+   "POST /command|{\"command\":\"_mode_autonomous\"}"
+  ],
+  [
+   "HELLO",
+   "POST /command|{\"command\":\"hello\"}"
+  ],
+  [
+   "DANCE",
+   "POST /command|{\"command\":\"dance\"}"
+  ],
+  [
+   "PHOTO",
+   "POST /command|{\"command\":\"photo\"}"
+  ],
+  [
+   "MUSIC",
+   "POST /command|{\"command\":\"music_toggle\"}"
+  ],
+  [
+   "LOCK",
+   "GET /motorlockOn"
+  ]
+ ],
+ "tiles": [
+  [
+   "Front",
+   "distance_cm",
+   " cm"
+  ],
+  [
+   "Mode",
+   "mode",
+   ""
+  ],
+  [
+   "Speed",
+   "speed",
+   ""
+  ],
+  [
+   "Moving",
+   "moving",
+   ""
+  ],
+  [
+   "Music",
+   "music",
+   ""
+  ]
+ ],
+ "background": "#0D0911",
+ "text": "#F2E9ED",
+ "accent": "#C84A89"
+}

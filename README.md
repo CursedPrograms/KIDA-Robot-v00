@@ -42,6 +42,8 @@
 
 **Camera:** her Android app shows her camera. If there's no picture, her page and PC controller show `NO CAMERA:` and the reason.
 
+**Other languages:** `scripts/controllers` has this robot's controller in C#, F#, Rust, Go and Julia, all reading one `robot.json`: W A S D to drive, the mode buttons and the sensors. See its README for how to run each.
+
 ## Related Projects
 
 
