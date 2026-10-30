@@ -50,6 +50,13 @@ Core Features
 
 ---
 
+## 🤖 HELLO, DANCE and fleet talk
+
+- **Android app (`Android App/`, package `com.synthwomb`): FIND gets her address from the fleet list, or type it in. Hold the stick to drive, let go to stop, and her modes, HELLO, DANCE, photo, music and the wheel lock are buttons. Build it with `gradlew assembleDebug`.**
+- **HELLO and DANCE:** on the spot, in USER mode: she says it, her camera shakes, and DANCE turns her left and right. A stop or the wheel lock ends it. **J** and **N** on the PC controller, buttons on her dashboard, `hello` and `dance` in `POST /do`.
+- **Brainfuck out loud:** `/chirp?u=<n>` plays the fleet's phrases on her speaker (`scripts/chirp.py`), so RIFT's conversations include her.
+- `/status` carries `rev`, her settings in one number.
+
 ## 🎮 Controls
 
 The same keys on her own screen (scripts/ui.py), the PC controller (controller/main.py) and the web dashboard. **H** or **F1** opens a keys window in each of them (on the dashboard also the **KEYS** button). She has no IR remote. One list feeds all of them and this section: `scripts/keymap.py` (regenerate with `python scripts/keymap.py`).
@@ -474,6 +481,6 @@ A Pi can't speak ESP-NOW, so KIDA-00 uses the Pi's own **Bluetooth LE**: she bea
 ## The DREAM Robotics ecosystem
 
 **Minds** — [DREAM](https://github.com/CursedPrograms/DREAM) companion · [TINA](https://github.com/CursedPrograms/TINA) engineer · [NINA](https://github.com/CursedPrograms/NINA) caretaker · [RIFT](https://github.com/CursedPrograms/RIFT) fleet hub · [LYCEA](https://github.com/CursedPrograms/LYCEA) training school  
-**Robots** — [NORA](https://github.com/CursedPrograms/NORA-Robot-v00) · [MILA](https://github.com/CursedPrograms/MILA-Robot-v00) · [WHIP](https://github.com/CursedPrograms/WHIP-Robot-v00) · [KIDA-00](https://github.com/CursedPrograms/KIDA-Robot-v00) · [KIDA-01](https://github.com/CursedPrograms/KIDA-Robot-v01) · [IDA](https://github.com/CursedPrograms/IDA-Robot-v00) · [ARM](https://github.com/CursedPrograms/ARM-Robot-v01) · [NIKA](https://github.com/CursedPrograms/NIKA-Robot-v00)  
+**Robots** — [NORA](https://github.com/CursedPrograms/NORA-Robot-v00) · [MILA](https://github.com/CursedPrograms/MILA-Robot-v00) · [WHIP](https://github.com/CursedPrograms/WHIP-Robot-v00) · [KIDA-00](https://github.com/CursedPrograms/KIDA-Robot-v00) · [KIDA-01](https://github.com/CursedPrograms/KIDA-Robot-v01) · [IDA](https://github.com/CursedPrograms/IDA-Robot-v00) · [ARM](https://github.com/CursedPrograms/ARM-Robot-v01) · [NIKA](https://github.com/CursedPrograms/NIKA-Robot-v00) · [ARIA](https://github.com/CursedPrograms/ARIA-Robot-v00)  
 **Remotes** — [RITA](https://github.com/CursedPrograms/RITA) handheld remote  
 <!-- DREAM-ECOSYSTEM:END -->
