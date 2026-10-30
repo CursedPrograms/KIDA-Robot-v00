@@ -37,6 +37,7 @@ KEYBOARD = [
         ("C", "photo (USER mode)"),
         ("V", "video recording on / off (USER mode)"),
         ("F", "save the faces it sees (USER mode)"),
+        ("J / N", "HELLO / DANCE, on the spot (USER mode; PC controller, buttons on her dashboard)"),
     ]),
     ("Music", [
         ("M", "play music"),

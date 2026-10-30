@@ -407,6 +407,8 @@ def run_controller() -> None:
                     elif k == pygame.K_c: remote.send("photo")
                     elif k == pygame.K_v: want("video_rec", not video_rec, "video_stop" if video_rec else "video_start")
                     elif k == pygame.K_f: remote.send("face_save")   # not S — that drives
+                    elif k == pygame.K_j: remote.send("hello")
+                    elif k == pygame.K_n: remote.send("dance")
 
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 pos = event.pos

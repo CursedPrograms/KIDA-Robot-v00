@@ -31,6 +31,7 @@ import os
 import socket
 import threading
 import time
+import zlib
 import requests
 from flask import Flask, Response, jsonify, request, render_template, render_template_string
 from zeroconf import ServiceInfo, Zeroconf, ServiceBrowser
@@ -68,7 +69,8 @@ FLEET_TYPE        = "tank"
 DO_SIMPLE = {"music_play": "music", "music_stop": "stop_music", "music_next": "skip", "photo": "photo"}
 DO_DRIVE  = {"forward": "forward", "back": "backward", "left": "left", "right": "right",
              "turn_left": "left", "turn_right": "right"}     # she turns on the spot either way
-DO_ACTIONS = ["stop", "lock_wheels", *DO_SIMPLE, *DO_DRIVE]
+DO_SHOW   = ("hello", "dance")   # on the spot (WHIP's, MILA's...): _start_show()
+DO_ACTIONS = ["stop", "lock_wheels", *DO_SIMPLE, *DO_DRIVE, *DO_SHOW]
 MAX_DRIVE_S = 3.0
 FLEET_CAPS = ("wasd,tank,obstacle_avoidance,line_follow,camera,face_detection,music,"
               f"music:{THIS_PORT},talk:{THIS_PORT}," + ",".join(f"do:{a}" for a in DO_ACTIONS))
@@ -225,6 +227,8 @@ def _status() -> dict:
               camera_servo=camera_servo.camera_servo.status(),
               **mind_drive.status_fields())
     st["distances_cm"] = {"front": st["distance_cm"]} if st["distance_cm"] is not None else {}
+    # Her settings in one number (WHIP's rev): a page or program sees at once that something changed elsewhere
+    st["rev"] = zlib.crc32(repr([st.get(k) for k in ("mode", "speed", "ctrl_scheme", "arc_turn", "motor_lock")]).encode())
     return st
 
 
@@ -491,6 +495,50 @@ def _drive_for(cmd: str, seconds: float) -> None:
     command_queue.put("stop")
 
 
+SHOW_BEAT_S = 0.4
+
+
+def _show(kind: str) -> None:
+    """HELLO: she says it and shakes her camera. DANCE: left, right on the spot, her camera the
+    other way. A /do stop or the wheel lock ends it. The camera stays put while it follows a face."""
+    try:
+        from voice import voice
+        import chirp
+        voice.play_wav(chirp.wav_of(0 if kind == "hello" else 2))
+    except Exception:
+        pass
+    head = camera_servo.camera_servo
+    look = head.status().get("mode") == "manual"
+    for i in range(6 if kind == "hello" else 8):
+        if time.monotonic() >= _drive["until"] or (kind == "dance" and motor_lock.is_set()):
+            break
+        left = i % 2 == 0
+        if look:
+            head.set_angle(60 if left else 120)
+        for _ in range(2):      # resent inside ui.py's REMOTE_HOLD_S
+            if kind == "dance":
+                command_queue.put("left" if left else "right")
+            time.sleep(SHOW_BEAT_S / 2)
+    _drive["until"] = 0.0
+    command_queue.put("stop")
+    if look:
+        head.centre()
+
+
+def _start_show(kind: str) -> str | None:
+    """Start HELLO or DANCE; the reason she can't, else None. USER mode only, one thing at a time."""
+    if kind == "dance" and motor_lock.is_set():
+        return "her wheels are locked"
+    mode = _robot_state.get("mode", "USER")
+    if mode != "USER":
+        return f"she's in {mode} mode"
+    if time.monotonic() < _drive["until"]:
+        return "busy: still on the last drive"
+    _drive["until"] = time.monotonic() + 8 * SHOW_BEAT_S + 1
+    threading.Thread(target=_show, args=(kind,), daemon=True, name="do-show").start()
+    return None
+
+
 @app.route("/do", methods=["POST"])
 def do_action():
     body   = _json_body()
@@ -508,6 +556,9 @@ def do_action():
     if action in DO_SIMPLE:
         command_queue.put(DO_SIMPLE[action])
         return jsonify({"ok": True, "action": action})
+    if action in DO_SHOW:
+        why = _start_show(action)
+        return (jsonify({"ok": False, "error": why}), 409) if why else jsonify({"ok": True, "action": action})
     if action not in DO_DRIVE:
         return jsonify({"ok": False, "error": f"KIDA00 can't {action or '(nothing)'}", "does": DO_ACTIONS}), 400
     if motor_lock.is_set():
@@ -550,6 +601,11 @@ def music_together():
 def receive_command():
     try:
         cmd = _json_body().get("command", "")
+        if cmd in DO_SHOW:      # her dashboard's and controller's HELLO / DANCE: not for ui.py
+            why = _start_show(cmd)
+            return jsonify({"received": cmd, "status": why or "started"})
+        if cmd == "stop":
+            _drive["until"] = 0.0
         command_queue.put(cmd)
         return jsonify({"received": cmd, "status": "queued"})
     except Exception as e:

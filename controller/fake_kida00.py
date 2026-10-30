@@ -162,6 +162,7 @@ class FakeKida(kit.FakeRobot):
             except ValueError:
                 pass
         elif cmd == "stop":                   self.remote_until = 0.0
+        elif cmd in ("hello", "dance"):       self.log("waves hello" if cmd == "hello" else "dances on the spot")
         elif cmd == "arc_toggle":             st["arc_turn"] = not st["arc_turn"]
         elif cmd in ("arc_on", "arc_off"):    st["arc_turn"] = cmd == "arc_on"
         elif cmd == "photo":                  self.log("photo taken")
