@@ -40,6 +40,8 @@
 
 ---
 
+**Camera:** her Android app shows her camera. If there's no picture, her page and PC controller show `NO CAMERA:` and the reason.
+
 ## Related Projects
 
 
