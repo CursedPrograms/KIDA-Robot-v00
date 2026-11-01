@@ -8,7 +8,7 @@
   "POST /command|{\"command\":\"_mode_user\"}",
   "POST /command|{\"command\":\"scheme_wasd\"}"
  ],
- "stop": "POST /command|{\"command\":\"stop\"}",
+ "stop": "POST /do|{\"action\":\"stop\"}",
  "keys": {
   "w": "POST /command|{\"command\":\"drive:0.60:0.60\"}",
   "s": "POST /command|{\"command\":\"drive:-0.60:-0.60\"}",

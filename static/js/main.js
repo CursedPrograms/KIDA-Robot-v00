@@ -67,10 +67,14 @@ $('btn-skip').addEventListener('click', () => { if (S.music_playing) send('skip_
 let holdDir = null;
 document.querySelectorAll('.dp').forEach(b => {
   b.addEventListener('pointerdown', e => {
+    if (b.dataset.dir === 'stop') {      // in any mode: autonomous and line don't hear a plain stop
+      if (!isUser()) send('_mode_user');
+      send('stop');
+      return;
+    }
     if (!isUser()) return;
     b.setPointerCapture(e.pointerId);
-    holdDir = b.dataset.dir === 'stop' ? null : b.dataset.dir;
-    if (!holdDir) send('stop');
+    holdDir = b.dataset.dir;
     updateDrive();
   });
   const up = () => { holdDir = null; updateDrive(); };

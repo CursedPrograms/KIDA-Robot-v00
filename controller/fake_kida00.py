@@ -12,6 +12,7 @@ controller/main.py can be tried with no robot:
   GET  /video_feed        MJPEG: the room from above, her in it, her sonar's ray
   GET  /qr.png            a stand-in for her dashboard's QR code
   POST /command           {"command": ...}: the same strings as ui.py's command processor
+  POST /do                {"action": "stop"}: stops her in any mode
   GET  /unlock /mind /look, POST /speak   her MIND mode (mind_drive.py)
 
 Run it alone (python fake_kida00.py) and point the controller at 127.0.0.1, or press
@@ -252,6 +253,13 @@ class FakeKida(kit.FakeRobot):
         if path == "/command" and "_body" in q:
             self.command(q.get("_json", {}).get("command", ""))
             return 200, {"received": q.get("_json", {}).get("command", ""), "status": "queued"}
+        if path == "/do" and "_body" in q:     # only stop: the five-language controllers' STOP
+            action = q.get("_json", {}).get("action", "")
+            if action != "stop":
+                return 400, {"ok": False, "error": f"the pretend KIDA00 can't {action or '(nothing)'}"}
+            self.command("stop")
+            self.command("_mode_user")
+            return 200, {"ok": True, "action": action}
         if path == "/video_feed":
             return 200, self._mjpeg(), "multipart/x-mixed-replace; boundary=frame"
         if path == "/qr.png":
