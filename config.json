@@ -23,6 +23,7 @@
       "Images": "images/",
       "Videos": "videos/",
       "Photos": "photos/"
-    }
+    },
+    "Controller": {"Link": "wifi", "BluetoothTarget": ""}
   }
 }

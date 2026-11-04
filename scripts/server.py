@@ -50,6 +50,7 @@ import fleet_music
 import camera_servo
 import keymap
 import mind_drive
+import fleet_bt                       # Bluetooth as equal as WiFi (RIFT/Fleet master)
 from fleet_ladder import FleetLadder
 
 # ── Config ─────────────────────────────────────────────────────────────────────
@@ -393,7 +394,7 @@ def near_robots():
 def status():
     if request.args.get("ctl") == "1":          # her mind host checking in
         mind_drive.check_in(request.remote_addr)
-    return jsonify(_status())
+    return jsonify({**_status(), "wifi_rssi": fleet_bt.wifi_rssi()})   # her WiFi signal (dBm), for RITA's STATS
 
 
 # ── Wheel lock (like NORA's /motorlockOn, /motorlockOff?pw=) ───────────────────
@@ -696,6 +697,8 @@ def run_flask() -> None:
     """Call this in a daemon thread from main.py."""
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
     logger.info("Flask starting on port %d", THIS_PORT)
+    fleet_bt.make_pairable("KIDA00")     # her Bluetooth: pair once from the controller's PC
+    fleet_bt.serve_rfcomm(THIS_PORT)      # her whole web API over Bluetooth serial too (fleet_bt.py)
     start_fleet_heartbeat()
     app.run(host="0.0.0.0", port=THIS_PORT, debug=False,
             use_reloader=False, threaded=True)

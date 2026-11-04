@@ -499,6 +499,14 @@ A Pi can't speak ESP-NOW, so KIDA-00 uses the Pi's own **Bluetooth LE**: she bea
 
 ---
 
+## Bluetooth
+
+The fleet has **one Bluetooth protocol** (`fleet_bt`, master copy in [RIFT](https://github.com/CursedPrograms/RIFT)'s `Fleet/`): a controller sends exactly the web request it would send over WiFi, one per line (`>GET /status`, `>POST /command<TAB>{...}`), and the robot asks its own web server and answers `<code> <length>` and the body. So every command works the same both ways, including new ones, and so does every rule: the PIN, the locks, the robot's own stops.
+
+- **KIDA-00** answers on Bluetooth serial (RFCOMM channel 1) next to her web server (`scripts/fleet_bt.py`, started in `server.py`); she makes herself discoverable and pairable as **KIDA00**.
+- **Her controller**: `config.json` -> `Controller` -> `Link: bluetooth`, `BluetoothTarget`: her Bluetooth address (a Pi gives a paired PC no COM port), or `KIDA00_BT=<address>`. Everything works the same except the **camera's live video, which needs WiFi** (Bluetooth serial is far too slow for it).
+- Her `/status` has `wifi_rssi`. Her camera's servo has an **angle slider** on her page, in her controller and on [RITA](https://github.com/CursedPrograms/RITA).
+
 <!-- DREAM-ECOSYSTEM:START -->
 ## The DREAM Robotics ecosystem
 

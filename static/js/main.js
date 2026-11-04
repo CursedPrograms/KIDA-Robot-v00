@@ -344,6 +344,16 @@ $('cs-follow').addEventListener('click', () => {
   csPost({ action: 'follow', on: cs.mode !== 'follow' });
 });
 $('cs-time').addEventListener('input', () => setText('cs-time-v', `${$('cs-time').value} s`));
+// the angle: drag and the camera follows (sent at most every 150 ms, and once more on letting go)
+let csDragging = false, csLastSent = 0, csTimer = null;
+const csSendAngle = () => { csLastSent = Date.now(); csPost({ action: 'angle', angle: +$('cs-pan').value }); };
+$('cs-pan').addEventListener('input', () => {
+  csDragging = true;
+  setText('cs-angle', `${$('cs-pan').value}°`);
+  clearTimeout(csTimer);
+  if (Date.now() - csLastSent > 150) csSendAngle(); else csTimer = setTimeout(csSendAngle, 150);
+});
+$('cs-pan').addEventListener('change', () => { clearTimeout(csTimer); csSendAngle(); csDragging = false; });
 $('cs-sweep').addEventListener('click', () => {
   const cs = S.camera_servo || {};
   csPost(cs.mode === 'sweep' ? { action: 'stop_sweep' } : { action: 'sweep', seconds: +$('cs-time').value });
@@ -351,7 +361,10 @@ $('cs-sweep').addEventListener('click', () => {
 function renderCameraServo() {
   const cs = S.camera_servo;
   if (!cs) return;
-  setText('cs-angle', `${Math.round(cs.angle)}°`);
+  if (!csDragging && Date.now() - csLastSent > 1000) {   // not while you're moving it
+    setText('cs-angle', `${Math.round(cs.angle)}°`);
+    $('cs-pan').value = Math.round(cs.angle);
+  }
   const follow = cs.mode === 'follow', sweep = cs.mode === 'sweep';
   setText('cs-follow', follow ? (cs.face ? 'FOLLOWING' : 'LOOKING…') : 'MANUAL');
   $('cs-follow').classList.toggle('active', follow);

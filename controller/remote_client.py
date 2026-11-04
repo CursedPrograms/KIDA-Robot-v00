@@ -20,6 +20,21 @@ import time
 
 import requests
 
+import fleet_bt   # her web API over Bluetooth serial (RIFT/Fleet master)
+
+# WiFi or Bluetooth: main.py calls use_bluetooth(target) for Bluetooth. Every request then goes over it,
+# the same requests; only the camera's live video can't (Bluetooth serial is far too slow for it).
+BT = None
+
+
+def use_bluetooth(target):
+    global BT
+    BT = fleet_bt.BtSession(target)
+
+
+def _web():
+    return BT or requests
+
 STATUS_INTERVAL = 0.25
 STATS_INTERVAL  = 2.0
 
@@ -42,8 +57,8 @@ class RemoteClient:
         self.status_at = 0.0     # time.monotonic() when the status above was asked for
         self.mind_host = False   # drive_mind.py: this PC can drive her mind, so check in (ctl=1)
         self._running  = True
-        self._session  = requests.Session()   # status polling
-        self._cmd_sess = requests.Session()   # commands — sessions aren't thread-safe to share
+        self._session  = (BT or requests.Session())   # status polling
+        self._cmd_sess = (BT or requests.Session())   # commands — sessions aren't thread-safe to share
         self._outbox   = queue.Queue()   # commands, sent one at a time in order
 
         for target in (self._poll_status, self._poll_stats, self._stream_cam,
@@ -80,7 +95,7 @@ class RemoteClient:
     def _poll_stats(self) -> None:
         while self._running:
             try:
-                r = requests.get(f"{self.base_url}/control/stats/", timeout=2)
+                r = _web().get(f"{self.base_url}/control/stats/", timeout=2)
                 self.stats = r.json().get("stats", {}) or {}
             except Exception:
                 pass
@@ -90,7 +105,7 @@ class RemoteClient:
         while self._running and self.qr_png is None:
             try:
                 url = self.base_url
-                r = requests.get(f"{url}/qr.png", timeout=3)
+                r = _web().get(f"{url}/qr.png", timeout=3)
                 if r.ok and r.content and self.base_url == url:
                     self.qr_png = r.content
                     return
@@ -100,6 +115,8 @@ class RemoteClient:
 
     # ── MJPEG reader ───────────────────────────────────────────────────────────
     def _stream_cam(self) -> None:
+        if BT:              # live video can't go over Bluetooth serial: the camera needs WiFi
+            return
         while self._running:
             try:
                 url  = self.base_url
@@ -131,6 +148,15 @@ class RemoteClient:
                 time.sleep(1.0)
 
     # ── Outbound ───────────────────────────────────────────────────────────────
+    def servo_angle(self, angle: float) -> None:
+        """Her camera's servo to `angle` (0-180), like the slider on her page: POST /camera_servo."""
+        def go():
+            try:
+                _web().post(f"{self.base_url}/camera_servo", json={"action": "angle", "angle": round(angle)}, timeout=1.5)
+            except Exception:
+                pass
+        threading.Thread(target=go, daemon=True).start()
+
     def send(self, command: str) -> None:
         """Fire-and-forget, so a slow robot never stalls the HUD. Commands go
         out one at a time in order — with a thread each, a "stop" could

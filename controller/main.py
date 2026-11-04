@@ -120,6 +120,23 @@ def _mode_of(status: dict) -> Mode:
         return Mode.USER
 
 
+
+def bluetooth_target():
+    """WiFi or Bluetooth (config.json Config/Controller: Link, BluetoothTarget), or KIDA00_BT=<target>.
+    The target: her Bluetooth address (a Pi gives a paired PC no COM port: the address is the way), or a
+    COM port / /dev/rfcommN. "" = WiFi."""
+    env = os.environ.get("KIDA00_BT", "").strip()
+    if env:
+        return env
+    try:
+        import json as _json
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.json"), encoding="utf-8") as f:
+            c = _json.load(f)["Config"].get("Controller", {})
+    except (OSError, ValueError, KeyError):
+        return ""
+    return c.get("BluetoothTarget", "").strip() if c.get("Link", "wifi").lower() == "bluetooth" else ""
+
+
 def _mode_cmd(mode: Mode) -> str:
     return f"_mode_{mode.name.lower()}"
 
@@ -143,6 +160,12 @@ def run_controller() -> None:
         start_fake()
     base_url = FAKE_URL if emulate else real_url
     print(f"{APP_NAME} - connecting to {base_url}" + ("  (EMULATE: her pretend self)" if emulate else ""))
+    bt = None if emulate else bluetooth_target()
+    if bt:                                  # Bluetooth: the same requests, over her Bluetooth serial
+        import remote_client as _rc
+        _rc.use_bluetooth(bt)
+        base_url = "bt://KIDA00"
+        print(f"{APP_NAME} - over Bluetooth ({bt}); the camera needs WiFi")
     remote  = RemoteClient(base_url)
     brain   = DriveMind(remote)
     pending = kit.Pending()                 # settings sent again until her status says so
@@ -234,6 +257,12 @@ def run_controller() -> None:
     print("Keys: the same as on the robot. H or F1 shows them all.")
 
     running = True
+    servo_drag, servo_sent, servo_rect = None, 0.0, None   # her camera servo's slider (drawn under the camera)
+
+    def servo_at(x):
+        track_x, track_w = servo_rect.x + 78, servo_rect.w - 92
+        return max(0.0, min(180.0, (x - track_x) / track_w * 180))
+
     while running:
         mouse  = pygame.mouse.get_pos()
         at     = remote.status_at   # first: the status read after it is at least that new
@@ -298,6 +327,17 @@ def run_controller() -> None:
         render_info_strip(screen, mode, direction, speed, ctrl_scheme, led_color,
                           len(faces), lay["CAM_X"], lay["CAM_Y"], lay["CAM_H"],
                           fmono_xs, fmono_sm)
+        # her camera's servo: a slider at the end of the strip under the picture (drag: the camera follows)
+        sw = min(280, lay["CAM_W"] // 2 - 10)
+        servo_rect = pygame.Rect(lay["CAM_X"] + lay["CAM_W"] - sw, lay["CAM_Y"] + lay["CAM_H"] + 12, sw, 30)
+        shown = servo_drag if servo_drag is not None else float((status.get("camera_servo") or {}).get("angle", 90))
+        pygame.draw.rect(screen, rh.CAM_BG, servo_rect, border_radius=6)
+        track = pygame.Rect(servo_rect.x + 78, servo_rect.centery - 2, servo_rect.w - 92, 4)
+        pygame.draw.rect(screen, rh.DIM, track, border_radius=2)
+        pygame.draw.line(screen, rh.DIM, (track.centerx, track.y - 6), (track.centerx, track.bottom + 6))
+        kx = track.x + int(shown / 180 * track.w)
+        pygame.draw.rect(screen, rh.AMBER if servo_drag is not None else rh.PRI, (kx - 6, servo_rect.y + 4, 12, servo_rect.h - 8), border_radius=3)
+        txt(screen, fmono_xs, f"CAM {int(round(shown))}", (servo_rect.x + 8, servo_rect.centery - 7), rh.PRI)
 
         hline(screen, TOP_H,          0, W)
         hline(screen, H - BOT_H,      0, W)
@@ -439,6 +479,9 @@ def run_controller() -> None:
                 jc = lay["joy"]
                 if jc and (pos[0] - jc[0]) ** 2 + (pos[1] - jc[1]) ** 2 <= jc[2] ** 2:
                     joy = joystick_value(jc, pos)      # dragged until the button comes up
+                if servo_rect and servo_rect.collidepoint(pos):   # her camera's servo slider
+                    servo_drag = servo_at(pos[0])
+                    remote.servo_angle(servo_drag); servo_sent = time.monotonic()
 
                 if mode == Mode.USER:
                     for i, r in enumerate(lay["sch_btns"]):
@@ -462,12 +505,20 @@ def run_controller() -> None:
                 if lay["btn_skip"].collidepoint(pos) and music_on:
                     remote.send("skip_music")
 
+            elif event.type == pygame.MOUSEMOTION and servo_drag is not None:
+                servo_drag = servo_at(event.pos[0])
+                if time.monotonic() - servo_sent > 0.15:          # at most every 150 ms while dragging
+                    remote.servo_angle(servo_drag); servo_sent = time.monotonic()
+
             elif event.type == pygame.MOUSEMOTION and joy is not None:
                 joy = joystick_value(lay["joy"], event.pos)
 
             elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 hold_dir = None
                 joy      = None
+                if servo_drag is not None:                           # let go: the last angle, once more
+                    remote.servo_angle(servo_drag)
+                    servo_drag = None
 
         # ── Gamepad buttons → the same commands as the keys / buttons ─────────
         pad = gamepad.poll()
