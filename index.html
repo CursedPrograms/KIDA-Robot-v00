@@ -24,9 +24,9 @@
     <ul>
       <li><a href="#overview">Overview</a></li>
       <li><a href="#hardware">Hardware</a></li>
-      <li><a href="#controls">Controls</a></li>
-      <li><a href="#quickstart">Quick start</a></li>
       <li><a href="#music">Music</a></li>
+      <li><a href="#quickstart">Quick start</a></li>
+      <li><a href="#controls">Controls</a></li>
       <li><a href="#near">Nearby</a></li>
       <li><a href="#screens">Screens</a></li>
       <li><a href="https://github.com/CursedPrograms/KIDA-Robot-v00">GitHub</a></li>
@@ -70,7 +70,6 @@
 </header>
 
 <main>
-
 <section id="overview">
   <div class="wrap">
     <h2>Overview</h2>
@@ -80,6 +79,7 @@
         <span class="k">Phone</span>
         <h4>An Android app</h4>
         <p>Hold the stick to drive, let go to stop, with her modes, photos and music as buttons.</p>
+        <p><a class="btn primary" href="https://github.com/CursedPrograms/KIDA-Robot-v00/raw/main/Android%20App/apk/KIDA-00-debug-2026-10-30.apk">Download the APK</a></p>
       </div>
       <div class="card">
         <span class="k">Fleet</span>
@@ -168,6 +168,39 @@
   </div>
 </section>
 
+<section id="music">
+  <div class="wrap">
+    <h2>Music</h2>
+    <h3 class="title">What KIDA plays</h3>
+    <p class="muted">The tracks on KIDA's music player, straight from <code>audio/music/</code>.</p>
+    <div class="player" data-tracks='[{"title": "Track 00", "src": "audio/music/track00.mp3"}, {"title": "Track 01", "src": "audio/music/track01.mp3"}, {"title": "Track 02", "src": "audio/music/track02.mp3"}, {"title": "Track 03", "src": "audio/music/track03.mp3"}, {"title": "Track 04", "src": "audio/music/track04.mp3"}, {"title": "Track 05", "src": "audio/music/track05.mp3"}, {"title": "Track 06", "src": "audio/music/track06.mp3"}, {"title": "Track 07", "src": "audio/music/track07.mp3"}, {"title": "Track 08", "src": "audio/music/track08.mp3"}, {"title": "Track 09", "src": "audio/music/track09.mp3"}, {"title": "Track 10", "src": "audio/music/track10.mp3"}, {"title": "Track 11", "src": "audio/music/track11.mp3"}, {"title": "Track 12", "src": "audio/music/track12.mp3"}, {"title": "Track 13", "src": "audio/music/track13.mp3"}, {"title": "Track 14", "src": "audio/music/track14.mp3"}, {"title": "Track 15", "src": "audio/music/track15.mp3"}, {"title": "Track 16", "src": "audio/music/track16.mp3"}, {"title": "Track 17", "src": "audio/music/track17.mp3"}, {"title": "Track 18", "src": "audio/music/track18.mp3"}, {"title": "Track 19", "src": "audio/music/track19.mp3"}]'></div>
+  </div>
+</section>
+
+<section id="quickstart">
+  <div class="wrap">
+    <h2>Quick start</h2>
+    <h3 class="title">From SD card to driving</h3>
+    <p class="muted">Install <a href="https://www.raspberrypi.com/software/operating-systems/">Raspberry Pi OS</a>, clone the repo onto the Pi, then set up the environment:</p>
+<pre><span class="p">$</span> python3 -m venv venv
+<span class="p">$</span> source venv/bin/activate
+<span class="p">$</span> pip install --upgrade pip
+<span class="p">$</span> pip install -r requirements.txt</pre>
+    <p class="muted">Run her with Python, or with the shell scripts (give them permission once):</p>
+<pre><span class="p">$</span> python run.py
+
+<span class="p">$</span> chmod +x make_executables.sh &amp;&amp; ./make_executables.sh
+<span class="p">$</span> ./run.sh                     <span class="c"># main environment</span>
+<span class="p">$</span> ./linefollower.sh            <span class="c"># one behaviour on its own</span>
+<span class="p">$</span> ./obstacle_avoidance.sh</pre>
+    <h3 class="sub">Remote controller</h3>
+    <p class="muted">The same window as the robot's HUD, running on another PC. The first run creates <code>controller/venv</code> with just <code>pygame</code> and <code>requests</code>.</p>
+<pre><span class="p">$</span> ./run.sh 192.168.1.50                       <span class="c"># Linux / macOS (from controller/)</span>
+<span class="p">&gt;</span> run.bat 192.168.1.50                        <span class="c"># Windows</span>
+<span class="p">$</span> python main.py http://192.168.1.50:5003 --fullscreen</pre>
+  </div>
+</section>
+
 <section id="controls">
   <div class="wrap">
     <h2>Controls</h2>
@@ -212,7 +245,7 @@
         </tbody>
       </table>
     </div>
-    <p class="note"><strong>Safety:</strong> the robot stops any remote drive it hasn't heard about for 0.8&nbsp;s, so a dropped connection or a closed window never leaves her driving.</p>
+    <p class="note"><strong>Safety:</strong> she stops any remote drive she hasn't heard about for 0.8&nbsp;s, so a dropped connection or a closed window never leaves her driving.</p>
   </div>
 </section>
 
@@ -231,30 +264,6 @@
       </table>
     </div>
     <p class="muted spaced">Open her address on port <code>5003</code> in any browser on the same network to get the HTML remote controller, or connect through <a href="https://github.com/CursedPrograms/RIFT">RIFT</a>.</p>
-  </div>
-</section>
-
-<section id="quickstart">
-  <div class="wrap">
-    <h2>Quick start</h2>
-    <h3 class="title">From SD card to driving</h3>
-    <p class="muted">Install <a href="https://www.raspberrypi.com/software/operating-systems/">Raspberry Pi OS</a>, clone the repo onto the Pi, then set up the environment:</p>
-<pre><span class="p">$</span> python3 -m venv venv
-<span class="p">$</span> source venv/bin/activate
-<span class="p">$</span> pip install --upgrade pip
-<span class="p">$</span> pip install -r requirements.txt</pre>
-    <p class="muted">Run her with Python, or with the shell scripts (give them permission once):</p>
-<pre><span class="p">$</span> python run.py
-
-<span class="p">$</span> chmod +x make_executables.sh &amp;&amp; ./make_executables.sh
-<span class="p">$</span> ./run.sh                     <span class="c"># main environment</span>
-<span class="p">$</span> ./linefollower.sh            <span class="c"># one behaviour on its own</span>
-<span class="p">$</span> ./obstacle_avoidance.sh</pre>
-    <h3 class="sub">Remote controller</h3>
-    <p class="muted">The same window as the robot's HUD, running on another PC. The first run creates <code>controller/venv</code> with just <code>pygame</code> and <code>requests</code>.</p>
-<pre><span class="p">$</span> ./run.sh 192.168.1.50                       <span class="c"># Linux / macOS (from controller/)</span>
-<span class="p">&gt;</span> run.bat 192.168.1.50                        <span class="c"># Windows</span>
-<span class="p">$</span> python main.py http://192.168.1.50:5003 --fullscreen</pre>
   </div>
 </section>
 
@@ -287,15 +296,6 @@
         <figcaption>Web dashboard</figcaption>
       </figure>
     </div>
-  </div>
-</section>
-
-<section id="music">
-  <div class="wrap">
-    <h2>Music</h2>
-    <h3 class="title">What KIDA plays</h3>
-    <p class="muted">The tracks on KIDA's music player, straight from <code>audio/music/</code>.</p>
-    <div class="player" data-tracks='[{"title": "Track 00", "src": "audio/music/track00.mp3"}, {"title": "Track 01", "src": "audio/music/track01.mp3"}, {"title": "Track 02", "src": "audio/music/track02.mp3"}, {"title": "Track 03", "src": "audio/music/track03.mp3"}, {"title": "Track 04", "src": "audio/music/track04.mp3"}, {"title": "Track 05", "src": "audio/music/track05.mp3"}, {"title": "Track 06", "src": "audio/music/track06.mp3"}, {"title": "Track 07", "src": "audio/music/track07.mp3"}, {"title": "Track 08", "src": "audio/music/track08.mp3"}, {"title": "Track 09", "src": "audio/music/track09.mp3"}, {"title": "Track 10", "src": "audio/music/track10.mp3"}, {"title": "Track 11", "src": "audio/music/track11.mp3"}, {"title": "Track 12", "src": "audio/music/track12.mp3"}, {"title": "Track 13", "src": "audio/music/track13.mp3"}, {"title": "Track 14", "src": "audio/music/track14.mp3"}, {"title": "Track 15", "src": "audio/music/track15.mp3"}, {"title": "Track 16", "src": "audio/music/track16.mp3"}, {"title": "Track 17", "src": "audio/music/track17.mp3"}, {"title": "Track 18", "src": "audio/music/track18.mp3"}, {"title": "Track 19", "src": "audio/music/track19.mp3"}]'></div>
   </div>
 </section>
 

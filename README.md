@@ -30,6 +30,11 @@
   <p><i>KIDA</i></p>
 </div>
 
+<div align="center">
+  <img src="images/kida-robot-front.png" alt="KIDA-00, the real robot" width="400"/>
+  <img src="images/kida-robot-side.png" alt="KIDA-00, the real robot" width="400"/>
+</div>
+
 ---
 
 <div align="center">
@@ -44,8 +49,9 @@
 
 **Other languages:** `scripts/controllers` has this robot's controller in C#, F#, Rust, Go and Julia, all reading one `robot.json`: W A S D to drive, the mode buttons and the sensors. See its README for how to run each.
 
-## Related Projects
+---
 
+## Related Projects
 
 <table>
   <tr>
@@ -71,6 +77,8 @@
 
 ## Overview
 
+**Website: <https://cursedprograms.github.io/KIDA-Robot-v00/>**
+
 <details>
 <summary><b>Overview</b></summary>
 
@@ -88,15 +96,13 @@ Core Features
 
 ---
 
-## Prerequisites
+## Hardware
 
 <details>
 <summary><b>Prerequisites</b></summary>
 
 ### Software
 - [Raspberry Pi OS](https://www.raspberrypi.com/software/operating-systems/)
-
-## Hardware
 
 ### Compute
 | **Component** | **Details** |
@@ -134,9 +140,7 @@ Core Features
 
 </details>
 
----
-
-## Pinouts
+### Pinout
 
 > [!IMPORTANT]
 > This section describes the GPIO pin assignments for the KIDA robot.
@@ -146,16 +150,14 @@ KIDA uses the V2 robot Hat from the [Freenove Tank Robot](https://github.com/Fre
 <details>
 <summary><b>Freenove Tank Robot HAT v2 GPIO Configuration</b></summary>
 
-## Ultrasonic Sensor (HC-SR04)
+#### Ultrasonic Sensor (HC-SR04)
 
 | Signal       | GPIO Pin |
 |-------------|----------|
 | TRIGGER_PIN | 27       |
 | ECHO_PIN    | 22       |
 
----
-
-## Servos
+#### Servos
 
 | Signal       | GPIO Pin |
 |-------------|----------|
@@ -163,17 +165,13 @@ KIDA uses the V2 robot Hat from the [Freenove Tank Robot](https://github.com/Fre
 | Servo1    | 13       |
 | Servo1    | 19       |
 
----
-
-## LEDpixel
+#### LEDpixel
 
 | Signal       | GPIO Pin |
 |-------------|----------|
 | LEDpixel | 10      |
 
----
-
-## Infrared Sensors
+#### Infrared Sensors
 
 | Sensor | GPIO Pin |
 |--------|----------|
@@ -181,9 +179,7 @@ KIDA uses the V2 robot Hat from the [Freenove Tank Robot](https://github.com/Fre
 | IR02   | 26  (IR02) |
 | IR03   | 21  (IR03) |
 
----
-
-## Motor Pins
+#### Motor Pins
 
 **Left Motor:**
 
@@ -311,10 +307,6 @@ The same keys on her own screen (scripts/ui.py), the PC controller (controller/m
   <img src="images/kida-robot-side.png" alt="KIDA Robot side view" width="400"/>
 </div>
 
----
-
-## Controls
-
 <details>
 <summary><b>Connectivity & Controls</b></summary>
 
@@ -351,7 +343,7 @@ To connect via [RIFT](https://github.com/CursedPrograms/RIFT), ensure KIDA-00 is
 
 ---
 
-## Setup
+## Quick start
 
 ### Environment Setup
 
@@ -366,10 +358,6 @@ pip install -r requirements.txt
 ```
 
 </details>
-
----
-
-## How to run
 
 <details>
 <summary><b>How to run:</b></summary>
@@ -420,7 +408,7 @@ chmod +x make_executables.sh
 
 ## HELLO, DANCE and fleet talk
 
-- **Android app (`Android App/`, package `com.synthwomb`): FIND gets her address from the fleet list, or type it in. Hold the stick to drive, let go to stop, and her modes, HELLO, DANCE, photo, music and the wheel lock are buttons. Build it with `gradlew assembleDebug`.**
+- **Android app (`Android App/`, package `com.synthwomb`): FIND gets her address from the fleet list, or type it in. Hold the stick to drive, let go to stop, and her modes, HELLO, DANCE, photo, music and the wheel lock are buttons. Build it with `gradlew assembleDebug`. Install: [`KIDA-00-debug-2026-10-30.apk`](Android%20App/apk/KIDA-00-debug-2026-10-30.apk).**
 - **HELLO and DANCE:** on the spot, in USER mode: she says it, her camera shakes, and DANCE turns her left and right. A stop or the wheel lock ends it. **J** and **N** on the PC controller, buttons on her dashboard, `hello` and `dance` in `POST /do`.
 - **Brainfuck out loud:** `/chirp?u=<n>` plays the fleet's phrases on her speaker (`scripts/chirp.py`), so RIFT's conversations include her.
 - `/status` carries `rev`, her settings in one number.
@@ -438,6 +426,18 @@ Her PC controller's LLM drives her, stop-look-think-move: she stands, looks, thi
 - **The PIN:** the controller signs in with her `MotorPassword` (`KIDA_PIN` on the PC), or `1234` while that's empty.
 
 Her side of it is `scripts/mind_drive.py`: `/unlock?pw=&ctl=1`, `/status?ctl=1`, `/mode?m=mind`, `/mind?act=fwd|bwd|left|right|stop&steps=1-4`, `/look?at=left|centre|right` (a JPEG) and `POST /speak` (a WAV).
+
+---
+
+## Bluetooth
+
+The fleet has **one Bluetooth protocol** (`fleet_bt`, master copy in [RIFT](https://github.com/CursedPrograms/RIFT)'s `Fleet/`): a controller sends exactly the web request it would send over WiFi, one per line (`>GET /status`, `>POST /command<TAB>{...}`), and the robot asks his or her own web server and answers `<code> <length>` and the body. So every command works the same both ways, including new ones, and so does every rule: the PIN, the locks, the robot's own stops.
+
+- **KIDA-00** answers on Bluetooth serial (RFCOMM channel 1) next to her web server (`scripts/fleet_bt.py`, started in `server.py`); she makes herself discoverable and pairable as **KIDA00**.
+- **Her controller**: `config.json` -> `Controller` -> `Link: bluetooth`, `BluetoothTarget`: her Bluetooth address (a Pi gives a paired PC no COM port), or `KIDA00_BT=<address>`. Everything works the same except the **camera's live video, which needs WiFi** (Bluetooth serial is far too slow for it).
+- Her `/status` has `wifi_rssi`. Her camera's servo has an **angle slider** on her page, in her controller and on [RITA](https://github.com/CursedPrograms/RITA).
+
+<!-- DREAM-ECOSYSTEM:START -->
 
 ---
 
@@ -483,14 +483,6 @@ A Pi can't speak ESP-NOW, so KIDA-00 uses the Pi's own **Bluetooth LE**: she bea
 
 ---
 
-<div align="center">&copy; Cursed Entertainment 2026</div>
-
-<div align="center">
-  <a href="https://cursed-entertainment.itch.io/">
-    <img src="https://github.com/CursedPrograms/cursedentertainment/raw/main/images/logos/logo-wide-grey.png" alt="Cursed Entertainment" width="250"/>
-  </a>
-</div>
-
 <div align="center">
   <a href="https://github.com/SynthWomb">
     <img src="https://github.com/SynthWomb/synth.womb/blob/main/logos/synthwomb07.png?raw=true" alt="SynthWomb" width="200"/>
@@ -499,15 +491,16 @@ A Pi can't speak ESP-NOW, so KIDA-00 uses the Pi's own **Bluetooth LE**: she bea
 
 ---
 
-## Bluetooth
+<div align="center">&copy; Cursed Entertainment 2026</div>
 
-The fleet has **one Bluetooth protocol** (`fleet_bt`, master copy in [RIFT](https://github.com/CursedPrograms/RIFT)'s `Fleet/`): a controller sends exactly the web request it would send over WiFi, one per line (`>GET /status`, `>POST /command<TAB>{...}`), and the robot asks its own web server and answers `<code> <length>` and the body. So every command works the same both ways, including new ones, and so does every rule: the PIN, the locks, the robot's own stops.
+<div align="center">
+  <a href="https://cursed-entertainment.itch.io/">
+    <img src="https://github.com/CursedPrograms/cursedentertainment/raw/main/images/logos/logo-wide-grey.png" alt="Cursed Entertainment" width="250"/>
+  </a>
+</div>
 
-- **KIDA-00** answers on Bluetooth serial (RFCOMM channel 1) next to her web server (`scripts/fleet_bt.py`, started in `server.py`); she makes herself discoverable and pairable as **KIDA00**.
-- **Her controller**: `config.json` -> `Controller` -> `Link: bluetooth`, `BluetoothTarget`: her Bluetooth address (a Pi gives a paired PC no COM port), or `KIDA00_BT=<address>`. Everything works the same except the **camera's live video, which needs WiFi** (Bluetooth serial is far too slow for it).
-- Her `/status` has `wifi_rssi`. Her camera's servo has an **angle slider** on her page, in her controller and on [RITA](https://github.com/CursedPrograms/RITA).
+---
 
-<!-- DREAM-ECOSYSTEM:START -->
 ## The DREAM Robotics ecosystem
 
 **Minds** — [DREAM](https://github.com/CursedPrograms/DREAM) companion · [TINA](https://github.com/CursedPrograms/TINA) engineer · [NINA](https://github.com/CursedPrograms/NINA) caretaker · [RIFT](https://github.com/CursedPrograms/RIFT) fleet hub · [LYCEA](https://github.com/CursedPrograms/LYCEA) training school  
