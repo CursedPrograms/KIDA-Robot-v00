@@ -73,7 +73,7 @@ DO_DRIVE  = {"forward": "forward", "back": "backward", "left": "left", "right": 
 DO_SHOW   = ("hello", "dance")   # on the spot (WHIP's, MILA's...): _start_show()
 DO_ACTIONS = ["stop", "lock_wheels", *DO_SIMPLE, *DO_DRIVE, *DO_SHOW]
 MAX_DRIVE_S = 3.0
-FLEET_CAPS = ("wasd,tank,obstacle_avoidance,line_follow,camera,face_detection,music,"
+FLEET_CAPS = ("wasd,tank,obstacle_avoidance,camera,face_detection,music,"
               f"music:{THIS_PORT},talk:{THIS_PORT}," + ",".join(f"do:{a}" for a in DO_ACTIONS))
 
 NINA_PORT     = 5012   # NINA (the fleet's caretaker) runs next to RIFT
@@ -101,6 +101,9 @@ _ROOT  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 app    = Flask(__name__,
                static_folder=os.path.join(_ROOT, "static"),
                template_folder=os.path.join(_ROOT, "templates"))
+import talk_switch   # noqa: E402  her Brainfuck talking muted or not: /talkmute (RIFT's Fleet/talk_mute.py)
+TALK = talk_switch.TalkSwitch(os.path.join(_ROOT, "talk_mute.json"))
+TALK.register(app)
 
 # ── Network discovery ──────────────────────────────────────────────────────────
 found_servers: dict = {}   # _flask-link peers (other robots / DREAM)
@@ -390,11 +393,25 @@ def near_robots():
     return jsonify(near.status())
 
 
+@app.route("/logs")
+def logs():
+    """The log of her whole run (run.sh writes logs/run.log from the moment she starts; Esc's
+    restarts go on in the same file). ?prev=1: the run before. Plain text, newest at the bottom."""
+    name = "run.prev.log" if request.args.get("prev") == "1" else "run.log"
+    path = os.path.join(_ROOT, "logs", name)
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            text = f.read()
+    except OSError:
+        text = f"No {name} yet: run.sh writes it (she was started some other way, or this is her first run)."
+    return Response(text, mimetype="text/plain; charset=utf-8", headers={"Cache-Control": "no-store"})
+
+
 @app.route("/status")
 def status():
     if request.args.get("ctl") == "1":          # her mind host checking in
         mind_drive.check_in(request.remote_addr)
-    return jsonify({**_status(), "wifi_rssi": fleet_bt.wifi_rssi()})   # her WiFi signal (dBm), for RITA's STATS
+    return jsonify({**_status(), "wifi_rssi": fleet_bt.wifi_rssi(), **TALK.state()})   # her WiFi signal (dBm), for RITA's STATS
 
 
 # ── Wheel lock (like NORA's /motorlockOn, /motorlockOff?pw=) ───────────────────
@@ -461,6 +478,10 @@ def chirp_route():
     u = request.args.get("u", type=int)
     if u not in chirp.UTTERANCES:
         return jsonify({"ok": False, "error": f"use /chirp?u=0-{len(chirp.UTTERANCES) - 1}"}), 400
+    if TALK.chat_off:       # her chat switch is off: RIFT leaves her out
+        return TALK.refuse()
+    if TALK.muted:          # her sound switch is off: said, not beeped
+        return TALK.silent()
     try:
         from voice import voice
         ok = voice.play_wav(chirp.wav_of(u))
@@ -505,7 +526,8 @@ def _show(kind: str) -> None:
     try:
         from voice import voice
         import chirp
-        voice.play_wav(chirp.wav_of(0 if kind == "hello" else 2))
+        if not TALK.muted:      # "hi" / "yay" in Brainfuck: not while her talking is muted
+            voice.play_wav(chirp.wav_of(0 if kind == "hello" else 2))
     except Exception:
         pass
     head = camera_servo.camera_servo

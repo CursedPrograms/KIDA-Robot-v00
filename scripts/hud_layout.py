@@ -10,7 +10,7 @@ screen size. Pure pygame — no hardware imports.
 
 import pygame
 
-TAB_LABELS   = ["USER CTRL", "AUTONOMOUS", "LINE FOLLOW"]
+TAB_LABELS   = ["USER CTRL", "AUTONOMOUS"]   # (no LINE FOLLOW: she has no line sensors any more)
 DPAD_GLYPHS  = {"forward": "▲", "left": "◀", "stop": "■", "right": "▶", "backward": "▼"}
 SPEED_LEVELS = [0.4, 0.6, 0.8, 1.0]
 
@@ -59,10 +59,11 @@ def compute_layout(W: int, H: int) -> dict:
     CAM_X = L_W + (CAM_AVAIL_W - CAM_W) // 2
     CAM_Y = TOP_H + TAB_H + PAD
 
+    n_tabs = len(TAB_LABELS)
     tab_w  = min(160, (CAM_AVAIL_W - PAD * 4) // 3)
-    tab_x0 = L_W + (CAM_AVAIL_W - (tab_w * 3 + PAD * 2)) // 2
+    tab_x0 = L_W + (CAM_AVAIL_W - (tab_w * n_tabs + PAD * (n_tabs - 1))) // 2
     tabs   = [pygame.Rect(tab_x0 + i * (tab_w + PAD), TOP_H + 6, tab_w, TAB_H - 12)
-              for i in range(3)]
+              for i in range(n_tabs)]
 
     DP_S = 76;  DP_G = 10
     DP_CX = W - R_W + (R_W - DP_S) // 2

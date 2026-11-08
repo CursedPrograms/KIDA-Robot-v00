@@ -171,3 +171,11 @@ controller/session_test_*.png
 # Controllers, built and kept
 !builds/
 !builds/*.exe
+
+# her Brainfuck talking switch (/talkmute)
+talk_mute.json
+talk_mute.json.tmp
+
+# run.sh: her run logs, and "already offered to install the service"
+logs/
+.service_offered

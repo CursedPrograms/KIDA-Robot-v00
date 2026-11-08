@@ -1,6 +1,7 @@
+# OpenCV (cv2) comes from the OS (apt: python3-opencv, 4.x): pip's opencv-python 5 has no CascadeClassifier,
+# which her face detection needs, and would hide it. The venv sees the OS's packages (--system-site-packages).
 flask
 pygame
-opencv-python
 numpy
 pillow
 psutil

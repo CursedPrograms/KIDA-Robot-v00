@@ -20,15 +20,14 @@ KEYBOARD = [
         ("W A S D", "WASD scheme: forward, turn left, back, turn right"),
         ("W+A, W+D ...", "curve while ARC is on (inside track slows)"),
         ("Q A / W S", "QA/WS scheme: left track / right track, forward and back"),
-        ("1 / 2", "WASD scheme / QA/WS tank scheme"),
+        (", or < / . or >", "WASD scheme / QA/WS tank scheme (KIDA-01's keys: both KIDAs drive the same)"),
         ("T", "ARC turns on / off"),
         ("X", "next speed (USER and AUTONOMOUS)"),
     ]),
-    ("Modes", [
-        ("TAB", "next mode: USER, AUTONOMOUS, LINE FOLLOW"),
-        ("U", "USER: you drive"),
-        ("O", "AUTONOMOUS: obstacle avoidance"),
-        ("L", "LINE FOLLOW"),
+    ("Modes (the numbers are KIDA-01's; KIDA-00 has 1, 3, 4 and 9)", [
+        ("1", "USER: you drive"),
+        ("3", "AUTONOMOUS: obstacle avoidance"),
+        ("4", "stop: motors off, back to USER (KIDA-01's IDLE)"),
         ("9", "MIND: the PC controller's mind drives her (only while one that can think is connected)"),
     ]),
     ("Camera", [
@@ -40,13 +39,15 @@ KEYBOARD = [
         ("J / N", "HELLO / DANCE, on the spot (USER mode; PC controller, buttons on her dashboard)"),
     ]),
     ("Music", [
-        ("M", "play music"),
-        ("SPACE", "stop music"),
+        ("M", "play music, or the next song while one plays"),
+        ("SPACE", "stop: motors and music, back to USER"),
     ]),
     ("Robot", [
-        ("K", "wheel lock on / off (her own keyboard only, no password)"),
+        ("U", "wheel lock on / off (her own keyboard only, no password)"),
+        ("L", "her lights on / off"),
         ("H or F1", "this keys window"),
-        ("ESC", "quit"),
+        ("ESC", "close her window: run.sh starts her again (as KIDA-01)"),
+        ("Q", "quit for good (Shift+Q in the QA/WS drive scheme, where Q drives)"),
     ]),
     ("PC controller only (controller/main.py)", [
         ("Backspace", "STOP: motors off in any mode, back to USER (as the STOP button and the D-pad's middle)"),

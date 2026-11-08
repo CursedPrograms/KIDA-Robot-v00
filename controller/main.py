@@ -423,18 +423,24 @@ def run_controller() -> None:
                     remote.send("cam_right")
                 elif k == pygame.K_UP:
                     remote.send("cam_centre")
-                elif k == pygame.K_TAB:
-                    want_mode(Mode((int(mode) + 1) % 3) if int(mode) < 3 else Mode.USER)
-                elif k == pygame.K_m:
-                    want("music_playing", True, "play_music")
-                elif k == pygame.K_SPACE:
-                    want("music_playing", False, "stop_music")
-                elif k == pygame.K_u:
+                # KIDA-01's keys (both KIDAs drive the same): 1 you drive, 3 obstacle avoidance,
+                # 4 stop, 9 MIND; , or < WASD, . or > QA/WS; SPACE stops motors and music
+                elif k == pygame.K_1:
                     want_mode(Mode.USER)
-                elif k == pygame.K_o:
+                elif k == pygame.K_3:
                     want_mode(Mode.AUTONOMOUS)
-                elif k == pygame.K_l:
-                    want_mode(Mode.LINE)
+                elif k == pygame.K_4:
+                    stop_anywhere()
+                elif event.unicode in ("<", ","):
+                    want("ctrl_scheme", 1, "scheme_1")
+                elif event.unicode in (">", "."):
+                    want("ctrl_scheme", 2, "scheme_2")
+                elif k == pygame.K_m:            # play, or the next song while one plays
+                    if status.get("music_playing"): remote.send("skip_music")
+                    else:                           want("music_playing", True, "play_music")
+                elif k == pygame.K_SPACE:
+                    stop_anywhere()
+                    want("music_playing", False, "stop_music")
                 elif k == pygame.K_9:
                     if brain.capable and status.get("mindHost"):
                         want_mode(Mode.MIND)
@@ -444,9 +450,7 @@ def run_controller() -> None:
                     i = (speed_idx + 1) % len(hud_layout.SPEED_LEVELS)   # autonomous cruises at it too
                     want("speed_idx", i, f"speed_{i + 1}")
                 elif mode == Mode.USER:
-                    if   k == pygame.K_1: want("ctrl_scheme", 1, "scheme_1")
-                    elif k == pygame.K_2: want("ctrl_scheme", 2, "scheme_2")
-                    elif k == pygame.K_t: want("arc_turn", not arc_turn, "arc_off" if arc_turn else "arc_on")
+                    if   k == pygame.K_t: want("arc_turn", not arc_turn, "arc_off" if arc_turn else "arc_on")
                     elif k == pygame.K_c: remote.send("photo")
                     elif k == pygame.K_v: want("video_rec", not video_rec, "video_stop" if video_rec else "video_start")
                     elif k == pygame.K_f: remote.send("face_save")   # not S — that drives

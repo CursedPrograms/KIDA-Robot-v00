@@ -3,7 +3,7 @@
    /control/stats/; every key/click is POSTed to /command as the same
    string ui.py's command processor takes. Bindings match ui.py. */
 
-const MODES       = ['USER', 'AUTONOMOUS', 'LINE'];
+const MODES       = ['USER', 'AUTONOMOUS'];   // (no LINE FOLLOW: she has no line sensors any more)
 const NATIVE_W    = 320, NATIVE_H = 240;
 const HEARTBEAT   = 250;   // ms — the robot stops a remote drive unheard for 800 ms
 const $           = id => document.getElementById(id);
@@ -92,20 +92,22 @@ document.addEventListener('keydown', e => {
   if ('wasdq'.includes(k) && k.length === 1) { held.add(k); updateDrive(); }
   if (e.repeat) return;
 
-  if      (k === 'Tab') send(modeCmd(MODES[(MODES.indexOf(mode()) + 1) % 3] || 'USER'));
-  else if (k === 'm')   send('play_music');
-  else if (k === ' ')   send('stop_music');
-  else if (k === 'u')   send(modeCmd('USER'));
-  else if (k === 'o')   send(modeCmd('AUTONOMOUS'));
-  else if (k === 'l')   send(modeCmd('LINE'));
+  // KIDA-01's keys (both KIDAs drive the same): 1 you drive, 3 obstacle avoidance, 4 stop, 9 MIND,
+  // , or < WASD, . or > QA/WS, SPACE stops motors and music, M plays (or skips)
+  if      (k === '1')   send(modeCmd('USER'));
+  else if (k === '3')   send(modeCmd('AUTONOMOUS'));
+  else if (k === '4')   { send(modeCmd('USER')); send('stop'); }
+  else if (k === '9')   send('_mode_mind');
+  else if (k === ',' || k === '<') send('scheme_1');
+  else if (k === '.' || k === '>') send('scheme_2');
+  else if (k === 'm')   send(S.music_playing ? 'skip_music' : 'play_music');
+  else if (k === ' ')   { send(modeCmd('USER')); send('stop'); send('stop_music'); }
   else if (k === 'x' && canSpeed()) send('speed');
   else if (k === 'ArrowLeft')  send('cam_left');     // the camera's servo (FOLLOW off)
   else if (k === 'ArrowRight') send('cam_right');
   else if (k === 'ArrowUp')    send('cam_centre');
   else if (isUser()) {
-    if      (k === '1') send('scheme_1');
-    else if (k === '2') send('scheme_2');
-    else if (k === 't') send('arc_toggle');
+    if      (k === 't') send('arc_toggle');
     else if (k === 'c') send('photo');
     else if (k === 'v') send('video_toggle');
     else if (k === 'f') send('face_save');   // not S — that drives
@@ -372,6 +374,21 @@ function renderCameraServo() {
   $('cs-sweep').classList.toggle('active', sweep);
 }
 
+// ── Her Brainfuck talking with the fleet (/talkmute): muted, RIFT leaves her out ──
+// her two switches: her beeps when she chats, and the chatting itself
+function showTalk(d) {
+  if (d.talk_muted === undefined) return;
+  $('btn-talk').textContent = d.talk_muted ? 'SOUND OFF' : 'SOUND';
+  $('btn-talk').classList.toggle('active', !d.talk_muted);
+  $('btn-chat').textContent = d.chat_off ? 'CHAT OFF' : 'CHAT';
+  $('btn-chat').classList.toggle('active', !d.chat_off);
+}
+async function flipTalk(which) {
+  try { showTalk(await (await fetch(`/talkmute?${which}=toggle`)).json()); } catch (e) {}
+}
+$('btn-talk').addEventListener('click', () => flipTalk('on'));
+$('btn-chat').addEventListener('click', () => flipTalk('chat_off'));
+
 // ── Polling ──────────────────────────────────────────────────────────────────
 async function pollStatus() {
   try {
@@ -379,6 +396,7 @@ async function pollStatus() {
     connected = true;
     renderStatus();
     renderCameraServo();
+    showTalk(S);
   } catch (e) { connected = false; }
   $('nolink').classList.toggle('on', !connected);
   $('ping').classList.toggle('off', !connected);

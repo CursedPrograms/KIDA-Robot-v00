@@ -40,7 +40,7 @@ from mode_control       import Mode, ModeContext, switch_mode, face_pulse_color
 from music_player       import MusicPlayer
 from motor_control      import MotorController
 from obstacle_avoidance import ObstacleAvoidance
-from line_follower      import LineFollower
+# (no line follower any more: line_follower.py stays, with its three pins, GPIO 16 / 26 / 21, for later)
 from led_control        import SPI_WS2812_LEDStrip
 try:
     from audio_analysis import AudioAnalyzer
@@ -98,7 +98,6 @@ _MODE_LED = {
 _MODE_MAP = {
     "_mode_user":       Mode.USER,
     "_mode_autonomous": Mode.AUTONOMOUS,
-    "_mode_line":       Mode.LINE,
     "_mode_face":       Mode.FACE,
     "_mode_mind":       Mode.MIND,      # only while a mind host checks in (mind_drive.py)
 }
@@ -293,9 +292,7 @@ def main() -> None:
     if avoider:   # the wall guard (motor_control.WALL_GUARD_M) reads the same front sensor
         motors.distance = avoider.get_distance
 
-    try:    liner = LineFollower(motors=motors)
-    except Exception as e:
-        logger.warning("LineFollower init failed: %s", e);  liner = None
+    liner = None   # no line sensors any more (line_follower.py keeps the pins for later)
 
     led = SPI_WS2812_LEDStrip(8, 128)
     if not led.ready:
@@ -329,8 +326,12 @@ def main() -> None:
     led_r = led_g = led_b = 0
     led_stale = False     # True after rhythm_wave drew over the strip
 
+    leds_on = [True]  # L: her lights on / off (as KIDA-01); off, the strip stays dark whatever she'd show
+
     def set_led(color: tuple) -> None:
         nonlocal led_r, led_g, led_b, led_stale
+        if not leds_on[0]:
+            color = (0, 0, 0)
         if tuple(color) == (led_r, led_g, led_b) and not led_stale:
             return            # unchanged — skip the SPI write
         led_r, led_g, led_b = color
@@ -502,6 +503,7 @@ def main() -> None:
 
     show_keys = False     # the keys window (H / F1), drawn over the HUD
     running = True
+    hard_quit = False   # Q: quit for good (run.sh doesn't restart her); Esc only closes, and run.sh brings her back
     try:
         while running:
             mouse = pygame.mouse.get_pos()
@@ -617,6 +619,12 @@ def main() -> None:
                     if   k in (pygame.K_h, pygame.K_F1) or (k == pygame.K_ESCAPE and show_keys):
                         show_keys = not show_keys and k != pygame.K_ESCAPE
                     elif k == pygame.K_ESCAPE:
+                        running = False        # closes: run.sh starts her again (as KIDA-01)
+                    elif k == pygame.K_q and (event.mod & pygame.KMOD_SHIFT or
+                                              not (ds["mode"] == Mode.USER and ds["ctrl_scheme"] == 2)):
+                        # Q quits for good. In the QA/WS scheme Q drives her left track, so there it's Shift+Q
+                        logger.info("Q: quitting for good")
+                        hard_quit = True
                         running = False
                     elif k == pygame.K_LEFT:
                         process_cmd("cam_left", ctx)
@@ -624,40 +632,56 @@ def main() -> None:
                         process_cmd("cam_right", ctx)
                     elif k == pygame.K_UP:
                         process_cmd("cam_centre", ctx)
-                    elif k == pygame.K_TAB:
-                        ds["mode"] = switch_mode(
-                            ds["mode"], Mode((int(ds["mode"]) + 1) % 3), ctx)
-                    elif k == pygame.K_m:
-                        music_play()
-                    elif k == pygame.K_SPACE:
-                        music_stop()
-                    elif k == pygame.K_u:
+                    # ── The keys are KIDA-01's (both KIDAs drive the same): 1 you drive, 3 obstacle
+                    # avoidance, 4 stop, 9 MIND (she has no 2 / 5-8: IR remote, line, watchdog, lanes,
+                    # person follow are KIDA-01's); , or < WASD, . or > QA/WS; SPACE stops everything
+                    elif k == pygame.K_1:
                         ds["mode"] = switch_mode(ds["mode"], Mode.USER, ctx)
-                    elif k == pygame.K_o:
+                    elif k == pygame.K_3:
                         ds["mode"] = switch_mode(ds["mode"], Mode.AUTONOMOUS, ctx)
-                    elif k == pygame.K_l:
-                        ds["mode"] = switch_mode(ds["mode"], Mode.LINE, ctx)
+                    elif k == pygame.K_4:          # KIDA-01's IDLE: motors off, back to you
+                        process_cmd("stop", ctx)
+                        ds["hold_dir"] = None
+                        ds["mode"] = switch_mode(ds["mode"], Mode.USER, ctx)
+                        motors.stop()
                     elif k == pygame.K_9:
                         process_cmd("_mode_mind", ctx)
-                    elif k == pygame.K_k:
-                        # ← wheel lock on/off: at the robot, no password (you're the credential)
+                    elif event.unicode in ("<", ","):
+                        ds["ctrl_scheme"] = 1      # ← WASD
+                    elif event.unicode in (">", "."):
+                        ds["ctrl_scheme"] = 2      # ← QA/WS
+                    elif k == pygame.K_SPACE:      # hard stop: motors and music
+                        process_cmd("stop", ctx)
+                        ds["hold_dir"] = None
+                        if ds["mode"] != Mode.USER:
+                            ds["mode"] = switch_mode(ds["mode"], Mode.USER, ctx)
+                        motors.stop()
+                        music_stop()
+                    elif k == pygame.K_m:          # play, or the next song if one's playing
+                        if ds["music_playing"]: music.play_next()
+                        else:                   music_play()
+                    elif k == pygame.K_l:          # her lights on / off
+                        leds_on[0] = not leds_on[0]
+                        led_stale = True
+                        set_led(led_color() if leds_on[0] else (0, 0, 0))
+                        logger.info("Lights %s (L)", "on" if leds_on[0] else "off")
+                    elif k == pygame.K_u:
+                        # ← wheel lock on/off (KIDA-01's U): at the robot, no password (you're the credential)
                         if motor_lock.is_set(): unlock_wheels()
                         else:                   lock_wheels()
-                        logger.info("Wheel lock %s (K)", "ON" if motor_lock.is_set() else "OFF")
+                        logger.info("Wheel lock %s (U)", "ON" if motor_lock.is_set() else "OFF")
                     elif k == pygame.K_x and ds["mode"] in (Mode.USER, Mode.AUTONOMOUS):
                         # ← cycle speed (autonomous cruises at the selected speed too)
                         ds["speed_idx"] = (ds["speed_idx"] + 1) % len(speed_levels)
                         ds["speed"]     = speed_levels[ds["speed_idx"]]
                     elif ds["mode"] == Mode.USER:
-                        if   k == pygame.K_1: ds["ctrl_scheme"] = 1  # ← WASD
-                        elif k == pygame.K_2: ds["ctrl_scheme"] = 2  # ← QA/WS
-                        elif k == pygame.K_t: ds["arc_turn"] = not ds["arc_turn"]   # ← arc turns on/off
+                        if   k == pygame.K_t: ds["arc_turn"] = not ds["arc_turn"]   # ← arc turns on/off
                         elif k == pygame.K_c: take_photo()
                         elif k == pygame.K_v: toggle_video(ds)
                         elif k == pygame.K_f: save_face_snapshot()   # not S — that drives
 
                 elif event.type == pygame.MOUSEBUTTONDOWN:
-                    for i, tr in enumerate(tabs):
+                    for i, tr in enumerate(tabs[:len(TAB_LABELS)]):
                         if tr.collidepoint(event.pos):
                             ds["mode"] = switch_mode(ds["mode"], Mode(i), ctx)
 
@@ -866,6 +890,8 @@ def main() -> None:
             except Exception as e:
                 logger.warning("Cleanup %s failed: %s", name, e)
         pygame.quit()
+    # 99: run.sh's sign for Q (don't start her again); anything else, run.sh restarts her
+    sys.exit(99 if hard_quit else 0)
 
 
 if __name__ == "__main__":

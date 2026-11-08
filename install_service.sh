@@ -92,8 +92,8 @@ ExecStartPre=/bin/sh -c 'until [ -S /run/user/$RUN_UID/wayland-0 ] || [ -S /run/
 TimeoutStartSec=90
 ExecStart=/bin/bash $REPO_DIR/start_service.sh
 
-# Come back if it crashes (or started before the display was ready),
-# but not if you quit it with Esc
+# Come back if it crashes (or started before the display was ready). Esc in her window restarts
+# her inside run.sh; Q quits for good (run.sh ends cleanly, so this doesn't restart her)
 Restart=on-failure
 RestartSec=5
 
